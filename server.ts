@@ -36,7 +36,9 @@ if (process.env.GEMINI_API_KEY) {
 // ==========================================
 
 function getLocalAnalysis(userInput: string, projects: any[], tasks: any[], userName: string) {
-  const text = userInput.toLowerCase();
+  const safeProjects = Array.isArray(projects) ? projects : [];
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+  const text = (userInput || "").toLowerCase();
   let responseText = `状況を把握しました、${userName}さん。`;
   let newProjectProposal = null;
   const updatedProjects: any[] = [];
@@ -45,54 +47,54 @@ function getLocalAnalysis(userInput: string, projects: any[], tasks: any[], user
 
   // Simple matching fallback for the demo/fallback mode
   if (text.includes("050call")) {
-    responseText = `050callの作業ですね。進捗を反映しておきます。`;
-    const proj = projects.find((p: any) => p.name.includes("050call"));
+    responseText = `050call of 作業ですね。進捗を反映しておきます。`;
+    const proj = safeProjects.find((p: any) => p && p.name && p.name.includes("050call"));
     if (proj) {
       updatedProjects.push({
         id: proj.id,
-        progress_percent: Math.min(100, proj.progress_percent + 10),
+        progress_percent: Math.min(100, (proj.progress_percent || 0) + 10),
         last_worked_at: new Date().toISOString(),
       });
     }
     if (text.includes("エラー") || text.includes("error")) {
-      const task = tasks.find((t: any) => t.title.includes("エラーハンドリング") && !t.done);
+      const task = safeTasks.find((t: any) => t && t.title && t.title.includes("エラーハンドリング") && !t.done);
       if (task) {
         completedTaskIds.push(task.id);
       }
     }
   } else if (text.includes("concertante")) {
     responseText = `CONCERTANTEの進行状況を更新しました。着実に進んでいますね。`;
-    const proj = projects.find((p: any) => p.name.toLowerCase().includes("concertante"));
+    const proj = safeProjects.find((p: any) => p && p.name && p.name.toLowerCase().includes("concertante"));
     if (proj) {
       updatedProjects.push({
         id: proj.id,
-        progress_percent: Math.min(100, proj.progress_percent + 5),
+        progress_percent: Math.min(100, (proj.progress_percent || 0) + 5),
         last_worked_at: new Date().toISOString(),
       });
     }
   } else if (text.includes("日記") || text.includes("ブラジル")) {
     responseText = `ブラジル日記ですね。文章の作成を記録しました。`;
-    const proj = projects.find((p: any) => p.name.includes("ブラジル日記"));
+    const proj = safeProjects.find((p: any) => p && p.name && p.name.includes("ブラジル日記"));
     if (proj) {
       updatedProjects.push({
         id: proj.id,
-        progress_percent: Math.min(100, proj.progress_percent + 15),
+        progress_percent: Math.min(100, (proj.progress_percent || 0) + 15),
         last_worked_at: new Date().toISOString(),
       });
     }
   } else if (text.includes("年表") || text.includes("神の栄光")) {
     responseText = `神の栄光の年表ですね。丁寧な記録、素晴らしいです。`;
-    const proj = projects.find((p: any) => p.name.includes("年表"));
+    const proj = safeProjects.find((p: any) => p && p.name && p.name.includes("年表"));
     if (proj) {
       updatedProjects.push({
         id: proj.id,
-        progress_percent: Math.min(100, proj.progress_percent + 8),
+        progress_percent: Math.min(100, (proj.progress_percent || 0) + 8),
         last_worked_at: new Date().toISOString(),
       });
     }
   } else {
     // Propose new project if some random name appears
-    const words = userInput.split(/[、。\s]+/);
+    const words = (userInput || "").split(/[、。\s]+/);
     const potentialName = words[0] || "新規プロジェクト";
     if (potentialName.length > 2 && potentialName.length < 15) {
       newProjectProposal = {
@@ -113,19 +115,21 @@ function getLocalAnalysis(userInput: string, projects: any[], tasks: any[], user
 }
 
 function getLocalSuggestion(projects: any[], tasks: any[]) {
-  const activeTasks = tasks.filter((t: any) => !t.done);
+  const safeProjects = Array.isArray(projects) ? projects : [];
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+  const activeTasks = safeTasks.filter((t: any) => t && !t.done);
   if (activeTasks.length > 0) {
     // Choose highest priority, or first task
-    const highPrio = activeTasks.find((t: any) => t.priority === "high");
+    const highPrio = activeTasks.find((t: any) => t && t.priority === "high");
     const selected = highPrio || activeTasks[0];
-    const project = projects.find((p: any) => p.id === selected.project_id);
+    const project = safeProjects.find((p: any) => p && p.id === selected.project_id);
     return {
       task: selected,
       reason: `優先度の高い『${project?.name || ""}』のタスクをおすすめします。`
     };
   } else {
     // Generate a default task suggestion
-    const activeProj = projects[0];
+    const activeProj = safeProjects[0] || { id: "default", name: "マイプロジェクト", type: "code" };
     return {
       task: {
         id: "temp-suggested",
@@ -147,7 +151,9 @@ function getLocalSuggestion(projects: any[], tasks: any[]) {
 
 // 1. Analyze unstructured daily status updates
 app.post("/api/temote/analyze", async (req, res) => {
-  const { userInput, projects, tasks, settings } = req.body;
+  const { userInput, projects: rawProjects, tasks: rawTasks, settings } = req.body;
+  const projects = Array.isArray(rawProjects) ? rawProjects : [];
+  const tasks = Array.isArray(rawTasks) ? rawTasks : [];
   const userName = settings?.name || "ジョアンナ";
 
   if (!userInput || userInput.trim() === "") {
@@ -265,10 +271,12 @@ ${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
 
 // 2. Suggest today's single best task based on 5 rules
 app.post("/api/temote/suggest", async (req, res) => {
-  const { projects, tasks, settings, lastCompletedTask } = req.body;
+  const { projects: rawProjects, tasks: rawTasks, settings, lastCompletedTask } = req.body;
+  const projects = Array.isArray(rawProjects) ? rawProjects : [];
+  const tasks = Array.isArray(rawTasks) ? rawTasks : [];
   const userName = settings?.name || "ジョアンナ";
 
-  if (!projects || projects.length === 0) {
+  if (projects.length === 0) {
     return res.json({
       task: null,
       reason: "プロジェクトが登録されていません。まずは現状入力欄にプロジェクトの状況を書き込んでみましょう。"
@@ -359,7 +367,9 @@ ${lastCompletedTask ? JSON.stringify(lastCompletedTask, null, 2) : "なし"}
 
 // 3. Morning Notification generator
 app.post("/api/temote/notify", async (req, res) => {
-  const { projects, tasks, settings } = req.body;
+  const { projects: rawProjects, tasks: rawTasks, settings } = req.body;
+  const projects = Array.isArray(rawProjects) ? rawProjects : [];
+  const tasks = Array.isArray(rawTasks) ? rawTasks : [];
   const userName = settings?.name || "ジョアンナ";
 
   if (!ai) {
