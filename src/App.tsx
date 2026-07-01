@@ -179,14 +179,51 @@ export default function App() {
     const userEvents = localStorage.getItem(`${keyPrefix}_events`);
 
     if (userProj && userTasks && userHist && userSett) {
-      setProjects(JSON.parse(userProj));
-      setTasks(JSON.parse(userTasks));
-      setHistory(JSON.parse(userHist));
-      setSettings(JSON.parse(userSett));
+      const parsedProj = JSON.parse(userProj);
+      const parsedTasks = JSON.parse(userTasks);
+      const parsedHist = JSON.parse(userHist);
+      const parsedSett = JSON.parse(userSett);
+      setProjects(parsedProj);
+      setTasks(parsedTasks);
+      setHistory(parsedHist);
+      setSettings(parsedSett);
       if (userEvents) {
         setEvents(JSON.parse(userEvents));
       } else {
-        setEvents([]);
+        const sampleEvts: CalendarEvent[] = [
+          {
+            id: "evt-initial-1",
+            title: "A社キックオフ・要件定義ミーティング",
+            date: "2026-07-01",
+            time: "10:00",
+            duration_minutes: 60,
+            project_id: "proj-050call",
+            type: "meeting",
+            description: "新規コールシステムの要件についての初顔合わせMTG"
+          },
+          {
+            id: "evt-initial-2",
+            title: "渋谷オフィス訪問 & 打合せ",
+            date: "2026-07-01",
+            time: "14:00",
+            duration_minutes: 90,
+            project_id: "proj-concertante",
+            type: "transit",
+            description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
+          },
+          {
+            id: "evt-initial-3",
+            title: "ブラジル日記 第3章 執筆完了目標",
+            date: "2026-07-05",
+            time: "15:00",
+            duration_minutes: 60,
+            project_id: "proj-brazil-diary",
+            type: "work",
+            description: "静的サイト化の移行にむけた、第3章の編集作業。"
+          }
+        ];
+        setEvents(sampleEvts);
+        saveUserData(email, parsedProj, parsedTasks, parsedHist, parsedSett, sampleEvts);
       }
     } else {
       // Setup initial dummy database for new registered users
@@ -352,6 +389,44 @@ export default function App() {
     setTasks(initialTasks);
     setHistory(initialHistory);
     setSettings(initialSettings);
+    
+    const sandboxEvents = localStorage.getItem("temote_sandbox_events");
+    if (sandboxEvents) {
+      setEvents(JSON.parse(sandboxEvents));
+    } else {
+      setEvents([
+        {
+          id: "evt-initial-1",
+          title: "A社キックオフ・要件定義ミーティング",
+          date: "2026-07-01",
+          time: "10:00",
+          duration_minutes: 60,
+          project_id: "proj-050call",
+          type: "meeting",
+          description: "新規コールシステムの要件についての初顔合わせMTG"
+        },
+        {
+          id: "evt-initial-2",
+          title: "渋谷オフィス訪問 & 打合せ",
+          date: "2026-07-01",
+          time: "14:00",
+          duration_minutes: 90,
+          project_id: "proj-concertante",
+          type: "transit",
+          description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
+        },
+        {
+          id: "evt-initial-3",
+          title: "ブラジル日記 第3章 執筆完了目標",
+          date: "2026-07-05",
+          time: "15:00",
+          duration_minutes: 60,
+          project_id: "proj-brazil-diary",
+          type: "work",
+          description: "静的サイト化の移行にむけた、第3章の編集作業。"
+        }
+      ]);
+    }
     setTemoteGreeting("ゲストモードに切り替わりました。サンドボックスデータはブラウザに一時保存されます。");
   };
 
@@ -454,7 +529,7 @@ export default function App() {
     setHistory(nextHistory);
 
     if (isLoggedIn) {
-      saveUserData(userEmail, nextProjects, nextTasks, nextHistory, settings);
+      saveUserData(userEmail, nextProjects, nextTasks, nextHistory, settings, events);
     }
 
     // Refresh suggestion
@@ -513,7 +588,7 @@ export default function App() {
     setHistory(nextHistory);
 
     if (isLoggedIn) {
-      saveUserData(userEmail, nextProjects, nextTasks, nextHistory, settings);
+      saveUserData(userEmail, nextProjects, nextTasks, nextHistory, settings, events);
     }
 
     // Refresh suggestion
@@ -593,7 +668,7 @@ export default function App() {
     setHistory(nextHistory);
 
     if (isLoggedIn) {
-      saveUserData(userEmail, nextProjects, nextTasks, nextHistory, settings);
+      saveUserData(userEmail, nextProjects, nextTasks, nextHistory, settings, events);
     }
 
     // Refresh suggestion with info about completed task to avoid immediate re-suggest
