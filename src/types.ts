@@ -1,4 +1,4 @@
-export type ProjectType = "code" | "writing";
+export type ProjectType = "code" | "writing" | "presentation";
 
 export interface Project {
   id: string;
@@ -50,3 +50,15 @@ export interface AnalyzeResult {
   }[];
   completedTaskIds: string[];
 }
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string; // "YYYY-MM-DD"
+  time?: string; // "HH:MM"
+  duration_minutes?: number;
+  project_id?: string; // Optional reference to a project
+  type: "work" | "break" | "lunch" | "review" | "transit" | "meeting" | "personal";
+  description?: string;
+}
+

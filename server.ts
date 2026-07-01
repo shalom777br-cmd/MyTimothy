@@ -145,6 +145,258 @@ function getLocalSuggestion(projects: any[], tasks: any[]) {
   }
 }
 
+function getLocalSchedule(projects: any[], tasks: any[], userName: string, events: any[] = []) {
+  const safeProjects = Array.isArray(projects) ? projects : [];
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+  const activeTasks = safeTasks.filter((t: any) => t && !t.done);
+
+  // Sort tasks: high priority first, then medium, then low
+  const sortedTasks = [...activeTasks].sort((a, b) => {
+    const prioValue = { high: 3, medium: 2, low: 1 };
+    const aPrio = prioValue[a.priority as "high" | "medium" | "low"] || 2;
+    const bPrio = prioValue[b.priority as "high" | "medium" | "low"] || 2;
+    if (aPrio !== bPrio) return bPrio - aPrio;
+
+    const projA = safeProjects.find((p) => p.id === a.project_id);
+    const projB = safeProjects.find((p) => p.id === b.project_id);
+    if (projA?.deadline && projB?.deadline) {
+      return new Date(projA.deadline).getTime() - new Date(projB.deadline).getTime();
+    }
+    if (projA?.deadline) return -1;
+    if (projB?.deadline) return 1;
+
+    const progA = projA?.progress_percent || 0;
+    const progB = projB?.progress_percent || 0;
+    return progB - progA;
+  });
+
+  const schedule: any[] = [];
+  let blockCounter = 0;
+
+  // Filter events for "2026-07-01"
+  const todayEvents = (events || [])
+    .filter((e: any) => e && e.date === "2026-07-01")
+    .sort((a: any, b: any) => {
+      const timeA = a.time || "00:00";
+      const timeB = b.time || "00:00";
+      return timeA.localeCompare(timeB);
+    });
+
+  let currentMins = 540; // 09:00 in minutes
+  let taskIndex = 0;
+  let scheduledLunch = false;
+
+  const toMins = (timeStr: string) => {
+    const [h, m] = timeStr.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const toTimeStr = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  };
+
+  // Morning kick-off
+  schedule.push({
+    id: `sc-morning-${blockCounter++}`,
+    time: `${toTimeStr(currentMins)} - ${toTimeStr(currentMins + 15)}`,
+    title: "1日のキックオフとタスク整理",
+    type: "review",
+    task_id: null,
+    project_id: null,
+    duration_minutes: 15,
+    reason: "今日のスケジュールと目標を確認し、スムーズなスタートを切ります。"
+  });
+  currentMins += 15;
+
+  let remainingEvents = [...todayEvents];
+
+  while (currentMins < 1050) { // Keep going until 17:30
+    // 1. Handle Lunch Break at or around 12:00 (720 mins)
+    if (currentMins >= 720 && !scheduledLunch) {
+      const lunchStart = currentMins;
+      const lunchEnd = lunchStart + 60;
+      schedule.push({
+        id: `sc-lunch-${blockCounter++}`,
+        time: `${toTimeStr(lunchStart)} - ${toTimeStr(lunchEnd)}`,
+        title: "昼食・お昼休み",
+        type: "lunch",
+        task_id: null,
+        project_id: null,
+        duration_minutes: 60,
+        reason: "午後のエネルギー補給のためにしっかり休憩をとりましょう。"
+      });
+      currentMins = lunchEnd;
+      scheduledLunch = true;
+      continue;
+    }
+
+    // 2. Check if we have an upcoming user calendar event starting soon (within 20 mins or already passed)
+    let eventToSchedule: any = null;
+    let eventToScheduleIdx = -1;
+
+    for (let i = 0; i < remainingEvents.length; i++) {
+      const ev = remainingEvents[i];
+      if (ev.time) {
+        const evStart = toMins(ev.time);
+        if (evStart <= currentMins + 20) {
+          eventToSchedule = ev;
+          eventToScheduleIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (eventToSchedule) {
+      const evStart = toMins(eventToSchedule.time);
+      // If there's a gap before the event starts, fill it with a quick review or transition
+      if (evStart > currentMins) {
+        const gap = evStart - currentMins;
+        schedule.push({
+          id: `sc-gap-${blockCounter++}`,
+          time: `${toTimeStr(currentMins)} - ${toTimeStr(evStart)}`,
+          title: "準備 & 移動・待機",
+          type: "transit",
+          task_id: null,
+          project_id: null,
+          duration_minutes: gap,
+          reason: "次の予定に遅れないよう、余裕を持って移動・準備を行います。"
+        });
+        currentMins = evStart;
+      }
+
+      const duration = eventToSchedule.duration_minutes || 30;
+      const evEnd = currentMins + duration;
+      const proj = safeProjects.find((p) => p.id === eventToSchedule.project_id);
+
+      schedule.push({
+        id: `sc-event-${eventToSchedule.id}-${blockCounter++}`,
+        time: `${toTimeStr(currentMins)} - ${toTimeStr(evEnd)}`,
+        title: eventToSchedule.title,
+        type: eventToSchedule.type || "work",
+        task_id: null,
+        project_id: eventToSchedule.project_id || null,
+        duration_minutes: duration,
+        reason: eventToSchedule.description || "カレンダーに登録された確定スケジュールです。"
+      });
+
+      currentMins = evEnd;
+      remainingEvents.splice(eventToScheduleIdx, 1);
+      continue;
+    }
+
+    // 3. Normal work/break scheduling
+    // Determine how much free time we have before the next big milestone (lunch or next event or 17:30)
+    let limitMins = 1050; // default to 17:30
+    if (!scheduledLunch && currentMins < 720) {
+      limitMins = Math.min(limitMins, 720);
+    }
+    if (remainingEvents.length > 0 && remainingEvents[0].time) {
+      limitMins = Math.min(limitMins, toMins(remainingEvents[0].time));
+    }
+
+    const available = limitMins - currentMins;
+
+    if (available >= 25) {
+      if (taskIndex < sortedTasks.length) {
+        const task = sortedTasks[taskIndex];
+        const proj = safeProjects.find((p) => p.id === task.project_id);
+        const duration = Math.min(task.estimated_minutes || 25, available, 60);
+
+        const isTransit = task.title.includes("移動") || 
+                          task.title.includes("訪問") || 
+                          task.title.includes("外出") || 
+                          task.title.includes("直行") || 
+                          task.title.includes("出張") || 
+                          task.title.includes("帰宅");
+
+        schedule.push({
+          id: `sc-task-${task.id}-${blockCounter++}`,
+          time: `${toTimeStr(currentMins)} - ${toTimeStr(currentMins + duration)}`,
+          title: `${proj?.name || "その他"}: ${task.title}`,
+          type: isTransit ? "transit" : "work",
+          task_id: task.id,
+          project_id: task.project_id,
+          duration_minutes: duration,
+          reason: isTransit 
+            ? "外出・移動時間を適切にスケジューリングしています。"
+            : (proj?.deadline 
+                ? `締切（${proj.deadline}）が設定された重要プロジェクトです。` 
+                : `進捗状況（${proj?.progress_percent || 0}%）と優先度を考慮したタスク配分です。`)
+        });
+
+        currentMins += duration;
+        taskIndex++;
+
+        // Push small break if space remains
+        if (limitMins - currentMins >= 15) {
+          schedule.push({
+            id: `sc-break-${blockCounter++}`,
+            time: `${toTimeStr(currentMins)} - ${toTimeStr(currentMins + 10)}`,
+            title: "小休憩（リフレッシュ）",
+            type: "break",
+            task_id: null,
+            project_id: null,
+            duration_minutes: 10,
+            reason: "集中力を維持するための最適な脳のリフレッシュ時間です。"
+          });
+          currentMins += 10;
+        }
+      } else {
+        // No more tasks, put buffer block
+        const duration = Math.min(available, 60);
+        schedule.push({
+          id: `sc-catchup-${blockCounter++}`,
+          time: `${toTimeStr(currentMins)} - ${toTimeStr(currentMins + duration)}`,
+          title: "予備時間・自由バッファ",
+          type: "review",
+          task_id: null,
+          project_id: null,
+          duration_minutes: duration,
+          reason: "予定が押しそうな場合のバッファ、または未完了タスクの処理時間です。"
+        });
+        currentMins += duration;
+      }
+    } else if (available > 0) {
+      // Small adjust gap
+      schedule.push({
+        id: `sc-adjust-${blockCounter++}`,
+        time: `${toTimeStr(currentMins)} - ${toTimeStr(limitMins)}`,
+        title: "ミニ休憩・準備",
+        type: "break",
+        task_id: null,
+        project_id: null,
+        duration_minutes: available,
+        reason: "次の時間枠に合わせるための調整休憩時間です。"
+      });
+      currentMins = limitMins;
+    } else {
+      // Just in case we get stuck, force increment to avoid infinite loop
+      currentMins += 15;
+    }
+  }
+
+  // Evening Wrap-up (17:30 - 18:00)
+  const eveningStart = Math.max(1050, currentMins);
+  schedule.push({
+    id: `sc-evening-${blockCounter++}`,
+    time: `${toTimeStr(eveningStart)} - ${toTimeStr(eveningStart + 30)}`,
+    title: "1日のふり返りと終業準備",
+    type: "review",
+    task_id: null,
+    project_id: null,
+    duration_minutes: 30,
+    reason: "今日完了したタスクをふり返り、翌日の計画をテモテに報告する準備をします。"
+  });
+
+  const advice = todayEvents.length > 0 
+    ? `${userName}さん、本日はカレンダーに登録された ${todayEvents.length} 件の予定を軸に、前後の隙間時間を活用してタスクを進めるスケジュールを編成しました。移動時間やお昼休みを綺麗に確保し、最も脳が活発な午前中に主要タスクをはめ込んでいます。`
+    : `${userName}さん、本日は進捗率と優先度のバランスを考慮したスケジュールを組みました。午前中に最もエネルギーを使うタスクを配置し、午後には中優先度のタスクを着実に進める構成です。無理のない休憩を挟むことで、持続的なパフォーマンスを期待できます。`;
+
+  return { schedule, advice };
+}
+
 // ==========================================
 // API Routes
 // ==========================================
@@ -407,6 +659,95 @@ ${JSON.stringify(tasks?.filter((t: any) => !t.done), null, 2)}
     res.json({ message: msg });
   } catch (error) {
     res.json({ message: `おはようございます、${userName}さん。本日もフォーカスして進めましょう。` });
+  }
+});
+
+// 4. Propose structured 1-day schedule based on tasks, progress, and deadlines
+app.post("/api/temote/schedule", async (req, res) => {
+  const { projects: rawProjects, tasks: rawTasks, settings, events: rawEvents } = req.body;
+  const projects = Array.isArray(rawProjects) ? rawProjects : [];
+  const tasks = Array.isArray(rawTasks) ? rawTasks : [];
+  const events = Array.isArray(rawEvents) ? rawEvents : [];
+  const userName = settings?.name || "ジョアンナ";
+
+  if (!ai) {
+    const fallbackResult = getLocalSchedule(projects, tasks, userName, events);
+    return res.json(fallbackResult);
+  }
+
+  try {
+    const systemPrompt = `あなたは優秀で謙虚なAI秘書「テモテ」です。
+ユーザー名: ${userName}
+今日のスケジュール（1日、例えば 09:00 〜 18:00）を、ユーザーが持っている「プロジェクト」「タスク（未完了のもの）」「それぞれの進行状況」「締め切り」、および「カレンダーの確定予定（あれば）」を完全に考慮して、最も効率的かつ現実的な1日のタイムスケジュール（スケジュール表）として提案してください。
+
+【既存のプロジェクト一覧】
+${JSON.stringify(projects, null, 2)}
+
+【既存の未完了タスク一覧】
+${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
+
+【本日のカレンダー確定予定（events）】
+※これらの予定はユーザーがカレンダーに自分で登録した「固定予定」です。必ず、指定された時間帯（time）とタイトル（title）、種別（type）をタイムスケジュールにそのまま組み込み、予定が重ならないようにしてください。
+${JSON.stringify(events.filter((e: any) => e.date === "2026-07-01"), null, 2)}
+
+【スケジューリングのルール】
+- 始業時間は原則 09:00、終業時間は 18:00 とします。
+- ユーザーのカレンダー確定予定（上記の本日の確定予定）が指定されている時間帯は、最優先でその確定予定を配置してください。
+- 確定予定以外の時間（空き枠）に対して、連続する作業は最大50分〜60分とし、その後に10分程度の小休憩（break）を挟む形で、既存のタスクをはめ込んでください。
+- 12:00〜13:00は原則として「昼食・お昼休み（lunch）」として確保してください（もしその時間にどうしても外せない固定予定が入っている場合は例外とします）。
+- 09:00〜09:15 は「1日のキックオフとタスク整理（review）」にしてください。
+- 17:30〜18:00 は「1日のふり返りと終業準備（review）」にしてください。
+- 移動や外出、直行・直帰、訪問などを伴う予定・タスクについては、作業種別「transit」（移動）を割り当ててください。
+- 各作業ブロックには、できる限りユーザーが持っている「既存の未完了タスク（task_id, project_id）」を割り当ててください。タスクが少なければ、そのプロジェクトの進捗率や種別を考慮して、新しい現実的な作業タスク（例えば『資料の構成案作成』や『エラーの修正とテスト』など）を補完して割り当ててください。
+- 各ブロックには、なぜその時間にその作業が提案されているのか、秘書としての納得感のある短い理由（reason）を記述してください。
+
+【出力JSONの形式】
+指定された responseSchema に従って、余計なマークダウン文字や解説を一切含めず、純粋なJSONのみを返してください。`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: "今日のスケジュールを提案してください。",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            schedule: {
+              type: Type.ARRAY,
+              description: "1日のスケジュールタイムラインブロック（時間順）",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING, description: "ブロックの一意のID。タスク割り当ての場合は 'sc-task-タスクID'、その他は 'sc-break', 'sc-lunch', 'sc-review', 'sc-transit' など" },
+                  time: { type: Type.STRING, description: "時間帯。例: '09:00 - 09:45'" },
+                  title: { type: Type.STRING, description: "予定・作業名。例: 'CONCERTANTE: APIエンドポイント設計'" },
+                  type: { type: Type.STRING, enum: ["work", "break", "lunch", "review", "transit"], description: "ブロックの種類" },
+                  task_id: { type: Type.STRING, nullable: true, description: "割り当てた既存タスクのID（あれば。なければnull）" },
+                  project_id: { type: Type.STRING, nullable: true, description: "紐づくプロジェクトのID（あれば。なければnull）" },
+                  duration_minutes: { type: Type.INTEGER, description: "そのブロックの所要時間（分）" },
+                  reason: { type: Type.STRING, description: "この時間帯にこれを提案する秘書としての理由（簡潔な1文）" }
+                },
+                required: ["id", "time", "title", "type", "task_id", "project_id", "duration_minutes", "reason"]
+              }
+            },
+            advice: {
+              type: Type.STRING,
+              description: "今日のスケジュール全体の構成意図や、進捗・締め切りを考慮したテモテからの短いアドバイス（日本語、2〜3文以内）。"
+            }
+          },
+          required: ["schedule", "advice"]
+        }
+      }
+    });
+
+    const resultText = response.text || "{}";
+    const parsed = JSON.parse(resultText);
+    res.json(parsed);
+  } catch (error: any) {
+    console.warn("Gemini schedule generation failed, falling back to local generator", error);
+    const fallbackResult = getLocalSchedule(projects, tasks, userName, events);
+    res.json(fallbackResult);
   }
 });
 

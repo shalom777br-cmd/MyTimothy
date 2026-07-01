@@ -1,24 +1,145 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Bell, LayoutDashboard, History, Settings as SettingsIcon, LogIn, LogOut, Loader2, Info } from "lucide-react";
-import { Project, Task, HistoryItem, Settings } from "./types";
+import { Project, Task, HistoryItem, Settings, CalendarEvent } from "./types";
 import { initialProjects, initialTasks, initialHistory, initialSettings } from "./data/initialData";
 import { StatusInput } from "./components/StatusInput";
 import { HomeView } from "./components/HomeView";
 import { ProjectsPanel } from "./components/ProjectsPanel";
 import { SettingsView } from "./components/SettingsView";
 import { AuthModal } from "./components/AuthModal";
+import { CuteTemoteLogo } from "./components/CuteTemoteLogo";
+import { DailySchedulePanel } from "./components/DailySchedulePanel";
+import { CalendarPanel } from "./components/CalendarPanel";
 
 export default function App() {
-  // Session Authentication State
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
+  // Session Authentication State (Synchronous initialization to prevent race conditions on reload)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    const session = localStorage.getItem("temote_session");
+    return !!session;
+  });
+  
+  const [userEmail, setUserEmail] = useState<string>(() => {
+    const session = localStorage.getItem("temote_session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        return parsed.email || "";
+      } catch (e) {
+        return "";
+      }
+    }
+    return "";
+  });
+
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Core Databases (State)
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
-  const [settings, setSettings] = useState<Settings>(initialSettings);
+  // Core Databases (State) initialized synchronously from active session / sandbox
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const session = localStorage.getItem("temote_session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        const userProj = localStorage.getItem(`temote_user_${parsed.email}_projects`);
+        if (userProj) return JSON.parse(userProj);
+      } catch (e) {}
+    } else {
+      const sandboxProj = localStorage.getItem("temote_sandbox_projects");
+      if (sandboxProj) return JSON.parse(sandboxProj);
+    }
+    return initialProjects;
+  });
+
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const session = localStorage.getItem("temote_session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        const userTasks = localStorage.getItem(`temote_user_${parsed.email}_tasks`);
+        if (userTasks) return JSON.parse(userTasks);
+      } catch (e) {}
+    } else {
+      const sandboxTasks = localStorage.getItem("temote_sandbox_tasks");
+      if (sandboxTasks) return JSON.parse(sandboxTasks);
+    }
+    return initialTasks;
+  });
+
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    const session = localStorage.getItem("temote_session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        const userHist = localStorage.getItem(`temote_user_${parsed.email}_history`);
+        if (userHist) return JSON.parse(userHist);
+      } catch (e) {}
+    } else {
+      const sandboxHist = localStorage.getItem("temote_sandbox_history");
+      if (sandboxHist) return JSON.parse(sandboxHist);
+    }
+    return initialHistory;
+  });
+
+  const [settings, setSettings] = useState<Settings>(() => {
+    const session = localStorage.getItem("temote_session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        const userSett = localStorage.getItem(`temote_user_${parsed.email}_settings`);
+        if (userSett) return JSON.parse(userSett);
+      } catch (e) {}
+    } else {
+      const sandboxSett = localStorage.getItem("temote_sandbox_settings");
+      if (sandboxSett) return JSON.parse(sandboxSett);
+    }
+    return initialSettings;
+  });
+
+  const [events, setEvents] = useState<CalendarEvent[]>(() => {
+    const session = localStorage.getItem("temote_session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        const userEvents = localStorage.getItem(`temote_user_${parsed.email}_events`);
+        if (userEvents) return JSON.parse(userEvents);
+      } catch (e) {}
+    } else {
+      const sandboxEvents = localStorage.getItem("temote_sandbox_events");
+      if (sandboxEvents) return JSON.parse(sandboxEvents);
+    }
+    // Return sample calendar events
+    return [
+      {
+        id: "evt-initial-1",
+        title: "A社キックオフ・要件定義ミーティング",
+        date: "2026-07-01",
+        time: "10:00",
+        duration_minutes: 60,
+        project_id: "proj-050call",
+        type: "meeting",
+        description: "新規コールシステムの要件についての初顔合わせMTG"
+      },
+      {
+        id: "evt-initial-2",
+        title: "渋谷オフィス訪問 & 打合せ",
+        date: "2026-07-01",
+        time: "14:00",
+        duration_minutes: 90,
+        project_id: "proj-concertante",
+        type: "transit",
+        description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
+      },
+      {
+        id: "evt-initial-3",
+        title: "ブラジル日記 第3章 執筆完了目標",
+        date: "2026-07-05",
+        time: "15:00",
+        duration_minutes: 60,
+        project_id: "proj-brazil-diary",
+        type: "work",
+        description: "静的サイト化の移行にむけた、第3章の編集作業。"
+      }
+    ];
+  });
 
   // Temote Greetings & Suggestions
   const [temoteGreeting, setTemoteGreeting] = useState<string>(
@@ -31,33 +152,6 @@ export default function App() {
   const [recommendationReason, setRecommendationReason] = useState<string>("");
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
 
-  // Active view tab (for compact layout / mobile responsiveness)
-  const [activeTab, setActiveTab] = useState<"dashboard" | "history" | "settings">("dashboard");
-
-  // Load and Save Session from localStorage based on user
-  useEffect(() => {
-    const session = localStorage.getItem("temote_session");
-    if (session) {
-      const parsed = JSON.parse(session);
-      setIsLoggedIn(true);
-      setUserEmail(parsed.email);
-      loadUserData(parsed.email);
-    } else {
-      // Load Guest Sandbox state
-      const sandboxProj = localStorage.getItem("temote_sandbox_projects");
-      const sandboxTasks = localStorage.getItem("temote_sandbox_tasks");
-      const sandboxHist = localStorage.getItem("temote_sandbox_history");
-      const sandboxSett = localStorage.getItem("temote_sandbox_settings");
-
-      if (sandboxProj && sandboxTasks && sandboxHist && sandboxSett) {
-        setProjects(JSON.parse(sandboxProj));
-        setTasks(JSON.parse(sandboxTasks));
-        setHistory(JSON.parse(sandboxHist));
-        setSettings(JSON.parse(sandboxSett));
-      }
-    }
-  }, []);
-
   // Save guest sandbox states to keep session alive during sandbox play
   useEffect(() => {
     if (!isLoggedIn) {
@@ -65,8 +159,9 @@ export default function App() {
       localStorage.setItem("temote_sandbox_tasks", JSON.stringify(tasks));
       localStorage.setItem("temote_sandbox_history", JSON.stringify(history));
       localStorage.setItem("temote_sandbox_settings", JSON.stringify(settings));
+      localStorage.setItem("temote_sandbox_events", JSON.stringify(events));
     }
-  }, [projects, tasks, history, settings, isLoggedIn]);
+  }, [projects, tasks, history, settings, events, isLoggedIn]);
 
   // Fetch initial AI recommendation & morning notification on mount/session changes
   useEffect(() => {
@@ -81,19 +176,49 @@ export default function App() {
     const userTasks = localStorage.getItem(`${keyPrefix}_tasks`);
     const userHist = localStorage.getItem(`${keyPrefix}_history`);
     const userSett = localStorage.getItem(`${keyPrefix}_settings`);
+    const userEvents = localStorage.getItem(`${keyPrefix}_events`);
 
     if (userProj && userTasks && userHist && userSett) {
       setProjects(JSON.parse(userProj));
       setTasks(JSON.parse(userTasks));
       setHistory(JSON.parse(userHist));
       setSettings(JSON.parse(userSett));
+      if (userEvents) {
+        setEvents(JSON.parse(userEvents));
+      } else {
+        setEvents([]);
+      }
     } else {
       // Setup initial dummy database for new registered users
       setProjects(initialProjects);
       setTasks(initialTasks);
       setHistory(initialHistory);
       setSettings(initialSettings);
-      saveUserData(email, initialProjects, initialTasks, initialHistory, initialSettings);
+      
+      const sampleEvts: CalendarEvent[] = [
+        {
+          id: "evt-initial-1",
+          title: "A社キックオフ・要件定義ミーティング",
+          date: "2026-07-01",
+          time: "10:00",
+          duration_minutes: 60,
+          project_id: "proj-050call",
+          type: "meeting",
+          description: "新規コールシステムの要件についての初顔合わせMTG"
+        },
+        {
+          id: "evt-initial-2",
+          title: "渋谷オフィス訪問 & 打合せ",
+          date: "2026-07-01",
+          time: "14:00",
+          duration_minutes: 90,
+          project_id: "proj-concertante",
+          type: "transit",
+          description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
+        }
+      ];
+      setEvents(sampleEvts);
+      saveUserData(email, initialProjects, initialTasks, initialHistory, initialSettings, sampleEvts);
     }
   };
 
@@ -103,20 +228,22 @@ export default function App() {
     p: Project[],
     t: Task[],
     h: HistoryItem[],
-    s: Settings
+    s: Settings,
+    evts: CalendarEvent[] = events
   ) => {
     const keyPrefix = `temote_user_${email}`;
     localStorage.setItem(`${keyPrefix}_projects`, JSON.stringify(p));
     localStorage.setItem(`${keyPrefix}_tasks`, JSON.stringify(t));
     localStorage.setItem(`${keyPrefix}_history`, JSON.stringify(h));
     localStorage.setItem(`${keyPrefix}_settings`, JSON.stringify(s));
+    localStorage.setItem(`${keyPrefix}_events`, JSON.stringify(evts));
   };
 
   // Auto-save when logged-in data changes
   const updateProjectsAndSave = (updatedProjList: Project[]) => {
     setProjects(updatedProjList);
     if (isLoggedIn) {
-      saveUserData(userEmail, updatedProjList, tasks, history, settings);
+      saveUserData(userEmail, updatedProjList, tasks, history, settings, events);
     }
     // Update suggestion immediately
     fetchAISuggestion(updatedProjList, tasks);
@@ -125,7 +252,7 @@ export default function App() {
   const updateTasksAndSave = (updatedTaskList: Task[]) => {
     setTasks(updatedTaskList);
     if (isLoggedIn) {
-      saveUserData(userEmail, projects, updatedTaskList, history, settings);
+      saveUserData(userEmail, projects, updatedTaskList, history, settings, events);
     }
     // Update suggestion immediately
     fetchAISuggestion(projects, updatedTaskList);
@@ -134,14 +261,21 @@ export default function App() {
   const updateHistoryAndSave = (updatedHistoryList: HistoryItem[]) => {
     setHistory(updatedHistoryList);
     if (isLoggedIn) {
-      saveUserData(userEmail, projects, tasks, updatedHistoryList, settings);
+      saveUserData(userEmail, projects, tasks, updatedHistoryList, settings, events);
     }
   };
 
   const updateSettingsAndSave = (updatedSettings: Settings) => {
     setSettings(updatedSettings);
     if (isLoggedIn) {
-      saveUserData(userEmail, projects, tasks, history, updatedSettings);
+      saveUserData(userEmail, projects, tasks, history, updatedSettings, events);
+    }
+  };
+
+  const updateEventsAndSave = (updatedEventsList: CalendarEvent[]) => {
+    setEvents(updatedEventsList);
+    if (isLoggedIn) {
+      saveUserData(userEmail, projects, tasks, history, settings, updatedEventsList);
     }
   };
 
@@ -275,7 +409,7 @@ export default function App() {
           project_name: proj?.name || "その他",
           task_title: compTask.title,
           completed_at: new Date().toISOString(),
-          note: "現状入力欄からのAI自動完了処理",
+          note: "「今持ってる仕事」欄からのAI自動完了処理",
         });
       }
     });
@@ -497,6 +631,72 @@ export default function App() {
     updateTasksAndSave(nextTasks);
   };
 
+  // Calendar Event Operations
+  const handleCalendarAddEvent = (evtData: Omit<CalendarEvent, "id">) => {
+    const newEvt: CalendarEvent = {
+      ...evtData,
+      id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    };
+    const nextEvents = [...events, newEvt];
+    updateEventsAndSave(nextEvents);
+  };
+
+  const handleCalendarDeleteEvent = (eventId: string) => {
+    const nextEvents = events.filter((e) => e.id !== eventId);
+    updateEventsAndSave(nextEvents);
+  };
+
+  // Update Project Details
+  const handleUpdateProject = (projectId: string, updatedFields: Partial<Project>) => {
+    const nextProjects = projects.map((p) => {
+      if (p.id === projectId) {
+        return { ...p, ...updatedFields };
+      }
+      return p;
+    });
+    updateProjectsAndSave(nextProjects);
+  };
+
+  // Update Task Details
+  const handleUpdateTask = (taskId: string, updatedFields: Partial<Task>) => {
+    const nextTasks = tasks.map((t) => {
+      if (t.id === taskId) {
+        return { ...t, ...updatedFields };
+      }
+      return t;
+    });
+
+    const targetTask = tasks.find((t) => t.id === taskId);
+    if (targetTask) {
+      let nextProjects = [...projects];
+      const pId = updatedFields.project_id || targetTask.project_id;
+      const projTasks = nextTasks.filter((t) => t.project_id === pId);
+      const doneTasks = projTasks.filter((t) => t.done);
+      if (projTasks.length > 0) {
+        const nextPercent = Math.round((doneTasks.length / projTasks.length) * 100);
+        nextProjects = nextProjects.map((p) => {
+          if (p.id === pId) {
+            return {
+              ...p,
+              progress_percent: nextPercent,
+            };
+          }
+          return p;
+        });
+      }
+      setProjects(nextProjects);
+      if (isLoggedIn) {
+        saveUserData(userEmail, nextProjects, nextTasks, history, settings, events);
+      }
+    }
+
+    setTasks(nextTasks);
+    if (isLoggedIn) {
+      saveUserData(userEmail, projects, nextTasks, history, settings, events);
+    }
+    fetchAISuggestion(projects, nextTasks);
+  };
+
   // Delete Project
   const handleDeleteProject = (projectId: string) => {
     const nextProjects = projects.filter((p) => p.id !== projectId);
@@ -504,7 +704,7 @@ export default function App() {
     setProjects(nextProjects);
     setTasks(nextTasks);
     if (isLoggedIn) {
-      saveUserData(userEmail, nextProjects, nextTasks, history, settings);
+      saveUserData(userEmail, nextProjects, nextTasks, history, settings, events);
     }
     fetchAISuggestion(nextProjects, nextTasks);
   };
@@ -513,6 +713,59 @@ export default function App() {
   const handleDeleteTask = (taskId: string) => {
     const nextTasks = tasks.filter((t) => t.id !== taskId);
     updateTasksAndSave(nextTasks);
+  };
+
+  // Delete Dummy Data (keeping custom-added data)
+  const handleDeleteDummyData = () => {
+    const dummyProjectIds = ["proj-050call", "proj-concertante", "proj-brazil-diary", "proj-god-glory"];
+    const nextProjects = projects.filter((p) => !dummyProjectIds.includes(p.id));
+    const nextTasks = tasks.filter((t) => !dummyProjectIds.includes(t.project_id));
+    const dummyHistoryIds = ["hist-1", "hist-2"];
+    const nextHistory = history.filter((h) => !dummyHistoryIds.includes(h.id));
+    const dummyEventIds = ["evt-initial-1", "evt-initial-2", "evt-initial-3"];
+    const nextEvents = events.filter((e) => !dummyEventIds.includes(e.id));
+
+    setProjects(nextProjects);
+    setTasks(nextTasks);
+    setHistory(nextHistory);
+    setEvents(nextEvents);
+
+    if (isLoggedIn) {
+      saveUserData(userEmail, nextProjects, nextTasks, nextHistory, settings, nextEvents);
+    } else {
+      localStorage.setItem("temote_sandbox_projects", JSON.stringify(nextProjects));
+      localStorage.setItem("temote_sandbox_tasks", JSON.stringify(nextTasks));
+      localStorage.setItem("temote_sandbox_history", JSON.stringify(nextHistory));
+      localStorage.setItem("temote_sandbox_events", JSON.stringify(nextEvents));
+    }
+    
+    // Reset AI suggestions / greet if no projects left
+    if (nextProjects.length === 0) {
+      setRecommendedTask(null);
+      setRecommendationReason("プロジェクトやタスクがありません。まずはプロジェクトを登録しましょう。");
+    } else {
+      fetchAISuggestion(nextProjects, nextTasks);
+    }
+  };
+
+  // Clear All Data Completely
+  const handleClearAllData = () => {
+    setProjects([]);
+    setTasks([]);
+    setHistory([]);
+    setEvents([]);
+
+    if (isLoggedIn) {
+      saveUserData(userEmail, [], [], [], settings, []);
+    } else {
+      localStorage.setItem("temote_sandbox_projects", JSON.stringify([]));
+      localStorage.setItem("temote_sandbox_tasks", JSON.stringify([]));
+      localStorage.setItem("temote_sandbox_history", JSON.stringify([]));
+      localStorage.setItem("temote_sandbox_events", JSON.stringify([]));
+    }
+
+    setRecommendedTask(null);
+    setRecommendationReason("プロジェクトやタスクがありません。まずはプロジェクトを登録しましょう。");
   };
 
   // Dark Mode styling classes helper
@@ -525,7 +778,7 @@ export default function App() {
       <header className="border-b border-gray-100 bg-white/85 backdrop-blur-md sticky top-0 z-40 transition-all">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="w-7 h-7 rounded-xl bg-[#1D1D1F] text-white flex items-center justify-center font-display font-semibold text-xs shadow-xs">テ</span>
+            <CuteTemoteLogo size={28} />
             <h1 className="font-display font-bold text-sm tracking-tight text-[#1D1D1F]">AI秘書 テモテ</h1>
           </div>
 
@@ -566,49 +819,26 @@ export default function App() {
       </header>
 
       {/* Main Container Layout */}
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-5">
         
-        {/* Navigation Tabs (Mobile Compact Helper) */}
-        <div className="flex gap-1 bg-gray-100/80 p-1 rounded-full mb-6 sm:hidden">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-full transition-all ${
-              activeTab === "dashboard" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500"
-            }`}
-          >
-            ホーム・提案
-          </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-full transition-all ${
-              activeTab === "history" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500"
-            }`}
-          >
-            プロジェクト
-          </button>
-          <button
-            onClick={() => setActiveTab("settings")}
-            className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-full transition-all ${
-              activeTab === "settings" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500"
-            }`}
-          >
-            設定
-          </button>
-        </div>
-
         {/* Dashboard Grid (Bento Layout) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+           
           {/* Main Workspace (Left Area on desktop) */}
-          <div className={`sm:col-span-2 space-y-6 ${activeTab !== "dashboard" ? "hidden sm:block" : ""}`}>
+          <div className="sm:col-span-2 space-y-4">
             
-            {/* Unstructured Status Input */}
-            <StatusInput
+            {/* Project List & Task Manager */}
+            <ProjectsPanel
               projects={projects}
               tasks={tasks}
-              settings={settings}
-              onAnalysisSuccess={handleAnalysisSuccess}
-              isGuest={!isLoggedIn}
+              onAddProject={handleAddProject}
+              onAddTask={handleAddTask}
+              onToggleTask={handleToggleTask}
+              onDeleteProject={handleDeleteProject}
+              onDeleteTask={handleDeleteTask}
+              onDeleteDummyData={handleDeleteDummyData}
+              onUpdateProject={handleUpdateProject}
+              onUpdateTask={handleUpdateTask}
             />
 
             {/* AI Greeting, suggestion, timer */}
@@ -621,28 +851,46 @@ export default function App() {
               loadingSuggestion={loadingSuggestion}
               projects={projects}
             />
+
+            {/* Calendar & Fixed Appointments Panel */}
+            <CalendarPanel
+              projects={projects}
+              events={events}
+              onAddEvent={handleCalendarAddEvent}
+              onDeleteEvent={handleCalendarDeleteEvent}
+            />
+
+            {/* Daily Schedule Generator */}
+            <DailySchedulePanel
+              projects={projects}
+              tasks={tasks}
+              events={events}
+              onSelectTaskToFocus={(task) => {
+                setRecommendedTask(task);
+                setRecommendationReason("スケジュールから選択された今日の集中タスクです。");
+              }}
+            />
           </div>
 
           {/* Side Panels (Right Area on desktop) */}
-          <div className={`space-y-6 ${activeTab === "dashboard" ? "hidden sm:block" : activeTab === "history" ? "block" : "hidden sm:block"}`}>
+          <div className="space-y-4">
             
-            {/* Project List & Task Manager */}
-            <ProjectsPanel
+            {/* Unstructured Status Input */}
+            <StatusInput
               projects={projects}
               tasks={tasks}
-              onAddProject={handleAddProject}
-              onAddTask={handleAddTask}
-              onToggleTask={handleToggleTask}
-              onDeleteProject={handleDeleteProject}
-              onDeleteTask={handleDeleteTask}
+              settings={settings}
+              onAnalysisSuccess={handleAnalysisSuccess}
+              isGuest={!isLoggedIn}
+              latestFeedback={temoteGreeting}
             />
 
             {/* History Logs */}
-            <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-xs transition-all hover:shadow-sm duration-300">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-50">
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs transition-all hover:shadow-sm duration-300">
+              <div className="flex items-center justify-between mb-3.5 pb-1.5 border-b border-gray-50">
                 <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] font-display">History</h2>
               </div>
-              <div className="space-y-3.5 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
                 {history.length === 0 ? (
                   <div className="text-center py-6 text-[10px] text-gray-400 font-light">
                     完了履歴がありません。
@@ -665,13 +913,13 @@ export default function App() {
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Settings panel tab screen */}
-          <div className={`${activeTab === "settings" ? "block" : "hidden sm:block"}`}>
+            {/* Settings View */}
             <SettingsView
               settings={settings}
               onUpdateSettings={updateSettingsAndSave}
+              onDeleteDummyData={handleDeleteDummyData}
+              onClearAllData={handleClearAllData}
             />
           </div>
 

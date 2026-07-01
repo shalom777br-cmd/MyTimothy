@@ -1,18 +1,33 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { User, Bell, Cpu, Moon, Sun, Save, Check } from "lucide-react";
 import { Settings } from "../types";
 
 interface SettingsViewProps {
   settings: Settings;
   onUpdateSettings: (newSettings: Settings) => void;
+  onDeleteDummyData?: () => void;
+  onClearAllData?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSettings }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({
+  settings,
+  onUpdateSettings,
+  onDeleteDummyData,
+  onClearAllData,
+}) => {
   const [name, setName] = useState(settings.name);
   const [aiModel, setAiModel] = useState(settings.ai_model);
   const [notificationEnabled, setNotificationEnabled] = useState(settings.notification_enabled);
   const [darkMode, setDarkMode] = useState(settings.dark_mode);
   const [saved, setSaved] = useState(false);
+
+  // Sync state when settings prop changes (e.g. loaded from localStorage or user session changes)
+  useEffect(() => {
+    setName(settings.name);
+    setAiModel(settings.ai_model);
+    setNotificationEnabled(settings.notification_enabled);
+    setDarkMode(settings.dark_mode);
+  }, [settings]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,6 +166,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSe
             )}
           </button>
         </div>
+
+        {/* Data Management Section */}
+        {(onDeleteDummyData || onClearAllData) && (
+          <div className="pt-6 mt-6 border-t border-gray-150/60 space-y-4">
+            <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-display">データ管理</h5>
+            <p className="text-[10px] text-gray-400 font-light leading-relaxed">
+              アプリケーションの初期デモデータ（ダミー）を削除したり、すべての登録データをクリアして最初から始めることができます。
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {onDeleteDummyData && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("デフォルトのダミープロジェクトとタスクをすべて削除しますか？（ご自身で作成したデータは残ります）")) {
+                      onDeleteDummyData();
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-semibold rounded-full border border-red-100 transition-colors cursor-pointer"
+                >
+                  ダミーデータを一括削除
+                </button>
+              )}
+              {onClearAllData && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("本当にすべてのプロジェクト、タスク、完了履歴データを完全に消去しますか？この操作は取り消せません。")) {
+                      onClearAllData();
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 text-[10px] font-semibold rounded-full border border-gray-200 transition-colors cursor-pointer"
+                >
+                  すべてのデータをリセット
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );

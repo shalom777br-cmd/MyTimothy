@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { LogIn, X, Mail, Lock, CheckCircle, ShieldAlert } from "lucide-react";
+import { CuteTemoteLogo } from "./CuteTemoteLogo";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -74,9 +75,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
 
         {/* Heading */}
         <div className="text-center space-y-2 pt-2">
-          <div className="w-12 h-12 rounded-2xl bg-[#1D1D1F] text-white flex items-center justify-center font-display font-semibold mx-auto shadow-xs text-lg">
-            テ
-          </div>
+          <CuteTemoteLogo size={48} className="mx-auto" />
           <h2 className="text-base font-display font-bold text-[#1D1D1F]">
             テモテにログイン
           </h2>
