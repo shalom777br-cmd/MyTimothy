@@ -1,0 +1,6 @@
+{
+  "name": "AI秘書 テモテ",
+  "description": "ユーザーのプロジェクト状況を把握し、自ら今日やるべき一言の提案をする、完成まで導くAI秘書「テモテ」。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

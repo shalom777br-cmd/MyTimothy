@@ -1,0 +1,52 @@
+export type ProjectType = "code" | "writing";
+
+export interface Project {
+  id: string;
+  name: string;
+  type: ProjectType;
+  status: "active" | "paused" | "completed";
+  progress_percent: number;
+  deadline?: string;
+  last_worked_at?: string;
+}
+
+export interface Task {
+  id: string;
+  project_id: string;
+  title: string;
+  estimated_minutes: number;
+  priority: "high" | "medium" | "low";
+  deadline?: string;
+  ai_assignee: "claude" | "gemini" | "chatgpt";
+  done: boolean;
+}
+
+export interface HistoryItem {
+  id: string;
+  task_id: string;
+  project_name: string;
+  task_title: string;
+  completed_at: string;
+  note?: string;
+}
+
+export interface Settings {
+  name: string;
+  ai_model: string;
+  notification_enabled: boolean;
+  dark_mode: boolean;
+}
+
+export interface AnalyzeResult {
+  responseText: string;
+  newProjectProposal: { name: string; type: ProjectType } | null;
+  updatedProjects: { id: string; progress_percent: number; last_worked_at: string }[];
+  createdTasks: {
+    project_id: string;
+    title: string;
+    estimated_minutes: number;
+    priority: "high" | "medium" | "low";
+    ai_assignee: "claude" | "gemini" | "chatgpt";
+  }[];
+  completedTaskIds: string[];
+}
