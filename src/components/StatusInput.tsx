@@ -13,6 +13,8 @@ interface StatusInputProps {
     updatedProjects: { id: string; progress_percent: number; last_worked_at: string }[];
     createdTasks: any[];
     completedTaskIds: string[];
+    isFallback?: boolean;
+    apiError?: string;
   }) => void;
   isGuest: boolean;
   latestFeedback?: string;
@@ -70,7 +72,9 @@ export const StatusInput: React.FC<StatusInputProps> = ({
           newProject: null,
           updatedProjects: data.updatedProjects || [],
           createdTasks: data.createdTasks || [],
-          completedTaskIds: data.completedTaskIds || []
+          completedTaskIds: data.completedTaskIds || [],
+          isFallback: data.isFallback,
+          apiError: data.apiError
         });
         setInput("");
       }

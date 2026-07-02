@@ -155,6 +155,8 @@ export default function App() {
   );
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  const [geminiFallbackActive, setGeminiFallbackActive] = useState<boolean>(false);
+  const [geminiErrorMsg, setGeminiErrorMsg] = useState<string>("");
 
   // Save guest sandbox states to keep session alive during sandbox play
   useEffect(() => {
@@ -378,6 +380,10 @@ export default function App() {
         const data = await response.json();
         setMorningNotification(data.message);
         setShowNotificationBanner(true);
+        if (data.isFallback) {
+          setGeminiFallbackActive(true);
+          setGeminiErrorMsg(data.apiError || "");
+        }
       }
     } catch (e) {
       console.warn("Could not fetch morning notification.", e);
@@ -406,6 +412,10 @@ export default function App() {
 
       if (response.ok) {
         const data = await response.json();
+        if (data.isFallback) {
+          setGeminiFallbackActive(true);
+          setGeminiErrorMsg(data.apiError || "");
+        }
         if (data.task) {
           // If suggestion returned a brand new suggested task, merge it or use it as is
           setRecommendedTask(data.task);
@@ -488,7 +498,14 @@ export default function App() {
     updatedProjects: { id: string; progress_percent: number; last_worked_at: string }[];
     createdTasks: any[];
     completedTaskIds: string[];
+    isFallback?: boolean;
+    apiError?: string;
   }) => {
+    if (result.isFallback) {
+      setGeminiFallbackActive(true);
+      setGeminiErrorMsg(result.apiError || "");
+    }
+
     // 1. Update text
     setTemoteGreeting(result.responseText);
 
@@ -993,6 +1010,39 @@ create policy "Users can update their own row"
               <button 
                 onClick={() => setSupabaseError(null)} 
                 className="text-amber-500 hover:text-amber-700 font-bold px-2 py-1 rounded-lg hover:bg-amber-100/50 absolute top-4 right-4 text-sm transition-colors"
+                title="閉じる"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Gemini API Fallback Banner */}
+        {geminiFallbackActive && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5 text-xs text-amber-900 animate-fade-in relative shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 rounded-lg text-amber-600 shrink-0">
+                <Sparkles className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="space-y-1 flex-1 pr-6">
+                <h3 className="font-bold text-sm text-amber-950 flex items-center gap-1.5">
+                  ローカルオフライン自動判定モードで稼働中
+                </h3>
+                <p className="text-amber-800 leading-relaxed text-xs">
+                  Gemini APIの無料枠制限（429 Quota Exceeded）または接続エラーが発生したため、テモテは一時的に
+                  <strong>安全なローカルオフライン自動判定ロジック</strong>
+                  で動作しています。プロジェクトやタスクの登録、進捗の手動更新、カレンダー管理などのコア機能はすべて通常どおり稼働しています。
+                </p>
+                {geminiErrorMsg && (
+                  <p className="text-[10px] text-amber-600 font-mono italic">
+                    エラー詳細: {geminiErrorMsg}
+                  </p>
+                )}
+              </div>
+              <button 
+                onClick={() => setGeminiFallbackActive(false)} 
+                className="text-amber-500 hover:text-amber-700 font-bold px-2 py-1 rounded-lg hover:bg-amber-100/50 absolute top-4 right-4 text-sm transition-colors cursor-pointer"
                 title="閉じる"
               >
                 ✕
