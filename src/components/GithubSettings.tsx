@@ -33,8 +33,9 @@ export const GithubSettings: React.FC<GithubSettingsProps> = ({ onTokenChange })
     checkStatus(savedToken);
   }, []);
 
-  const checkStatus = async (tokenToCheck: string) => {
+  const checkStatus = async (tokenToCheck: string, isManual = false) => {
     setLoading(true);
+    if (isManual) setMessage(null);
     try {
       const headers: Record<string, string> = {};
       if (tokenToCheck) {
@@ -47,16 +48,47 @@ export const GithubSettings: React.FC<GithubSettingsProps> = ({ onTokenChange })
         if (contentType && contentType.includes("application/json")) {
           const data = await res.json();
           setStatus(data);
+          if (isManual) {
+            if (data.authenticated) {
+              setMessage({
+                text: `GitHub 接続は正常です！接続確認に成功しました。(連携ユーザー: @${data.username || "guest"})`,
+                type: "success",
+              });
+            } else {
+              setMessage({
+                text: data.error || "GitHub 接続に失敗しました。トークンが無効か、有効期限が切れています。",
+                type: "error",
+              });
+            }
+          }
         } else {
           console.warn("Invalid content-type from github status check:", contentType);
           setStatus(null);
+          if (isManual) {
+            setMessage({
+              text: "サーバーから無効な応答形式（JSON以外）を受け取りました。",
+              type: "error",
+            });
+          }
         }
       } else {
         setStatus(null);
+        if (isManual) {
+          setMessage({
+            text: `接続確認に失敗しました（HTTPステータス: ${res.status}）`,
+            type: "error",
+          });
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Error checking GitHub status:", err);
       setStatus(null);
+      if (isManual) {
+        setMessage({
+          text: `接続確認中にエラーが発生しました: ${err.message || "通信状況を確認してください。"}`,
+          type: "error",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -107,33 +139,30 @@ export const GithubSettings: React.FC<GithubSettingsProps> = ({ onTokenChange })
 
       const data = await res.json();
 
-      if (cleanToken && !data.authenticated) {
+      if (data.authenticated) {
+        // Save token
+        if (cleanToken) {
+          localStorage.setItem("temote_github_pat", cleanToken);
+          setMessage({
+            text: `GitHub 接続テストに成功しました！トークンを保存しました。(連携ユーザー: @${data.username || "guest"})`,
+            type: "success",
+          });
+        } else {
+          localStorage.removeItem("temote_github_pat");
+          setMessage({
+            text: "カスタムトークンを削除し、接続確認に成功しました！",
+            type: "success",
+          });
+        }
+        setStatus(data);
+        onTokenChange();
+      } else {
         setMessage({
           text: data.error || "認証に失敗しました。トークンが無効であるか、有効期限が切れています。",
           type: "error",
         });
-        setTesting(false);
-        return;
       }
-
-      // Save token
-      if (cleanToken) {
-        localStorage.setItem("temote_github_pat", cleanToken);
-        setMessage({
-          text: "GitHub トークンを保存しました。リポジトリ自動分析が有効になりました！",
-          type: "success",
-        });
-      } else {
-        localStorage.removeItem("temote_github_pat");
-        setMessage({
-          text: "カスタムトークンを削除しました（サーバー側の設定がある場合はそちらが適用されます）。",
-          type: "success",
-        });
-      }
-
-      setStatus(data);
-      onTokenChange();
-      setTimeout(() => setMessage(null), 4000);
+      setTimeout(() => setMessage(null), 5000);
     } catch (err: any) {
       console.error("Save token error:", err);
       setMessage({
@@ -191,7 +220,7 @@ export const GithubSettings: React.FC<GithubSettingsProps> = ({ onTokenChange })
           </div>
 
           <button
-            onClick={() => checkStatus(token)}
+            onClick={() => checkStatus(token, true)}
             disabled={loading}
             title="最新の接続状況をチェック"
             className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-full transition-all border border-transparent hover:border-gray-100 shrink-0 cursor-pointer disabled:opacity-50"

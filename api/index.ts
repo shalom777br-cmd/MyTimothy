@@ -1,4 +1,3 @@
-// @ts-nocheck
-import app from "../dist/server.cjs";
+import app from "../server.ts";
 
 export default app;
