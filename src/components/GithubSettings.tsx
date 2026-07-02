@@ -43,8 +43,14 @@ export const GithubSettings: React.FC<GithubSettingsProps> = ({ onTokenChange })
 
       const res = await fetch("/api/github/status", { headers });
       if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setStatus(data);
+        } else {
+          console.warn("Invalid content-type from github status check:", contentType);
+          setStatus(null);
+        }
       } else {
         setStatus(null);
       }
@@ -70,11 +76,40 @@ export const GithubSettings: React.FC<GithubSettingsProps> = ({ onTokenChange })
       }
 
       const res = await fetch("/api/github/status", { headers });
+      
+      if (!res.ok) {
+        const text = await res.text();
+        let errMsg = `接続確認に失敗しました（HTTPステータス: ${res.status}）`;
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          errMsg = "サーバーからHTMLページが返されました。バックエンドが未起動であるか、新しいAPIルーティングのデプロイが完了していない可能性があります。";
+        } else {
+          try {
+            const parsedErr = JSON.parse(text);
+            errMsg = parsedErr.error || parsedErr.message || errMsg;
+          } catch (_) {
+            errMsg = text || errMsg;
+          }
+        }
+        setMessage({ text: errMsg, type: "error" });
+        setTesting(false);
+        return;
+      }
+
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        setMessage({
+          text: "サーバーから無効な応答形式（JSON以外）を受け取りました。最新のビルドが正しくデプロイされ、反映されているか確認してください。",
+          type: "error",
+        });
+        setTesting(false);
+        return;
+      }
+
       const data = await res.json();
 
       if (cleanToken && !data.authenticated) {
         setMessage({
-          text: "認証に失敗しました。トークンが無効であるか、有効期限が切れています。",
+          text: data.error || "認証に失敗しました。トークンが無効であるか、有効期限が切れています。",
           type: "error",
         });
         setTesting(false);
@@ -99,9 +134,10 @@ export const GithubSettings: React.FC<GithubSettingsProps> = ({ onTokenChange })
       setStatus(data);
       onTokenChange();
       setTimeout(() => setMessage(null), 4000);
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Save token error:", err);
       setMessage({
-        text: "接続確認中にエラーが発生しました。インターネット接続やサーバー設定を確認してください。",
+        text: `接続確認中にネットワークエラーが発生しました: ${err.message || "インターネット接続やサーバー設定を確認してください。"}`,
         type: "error",
       });
     } finally {
