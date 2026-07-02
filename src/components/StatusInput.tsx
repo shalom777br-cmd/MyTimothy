@@ -148,7 +148,7 @@ export const StatusInput: React.FC<StatusInputProps> = ({
       </div>
 
       <p className="text-[11px] text-gray-400 mb-2 leading-relaxed font-light">
-        進捗や状況、思いついた課題を自由に入力してください。テモテが自動解析しタスクや進捗度へマッピングします。
+        進捗や状況、思いついた課題、GitHubレポジトリを自由に入力してください。テモテが自動解析しタスクや進捗度へマッピングします。
       </p>
 
       {latestFeedback && 
@@ -209,7 +209,7 @@ export const StatusInput: React.FC<StatusInputProps> = ({
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="例：050callのエラーハンドリング直してる、次はCONCERTANTEのフォロー機能"
+              placeholder="例：050callのエラーハンドリング直してる、GitHubレポジトリ: https://github.com/username/repo を追加"
               rows={2}
               disabled={loading}
               className="w-full bg-transparent outline-hidden text-xs text-[#1D1D1F] placeholder:text-gray-300 font-light resize-none transition-all"
@@ -225,7 +225,7 @@ export const StatusInput: React.FC<StatusInputProps> = ({
 
           <div className="flex justify-between items-center pt-0">
             <div className="text-[9px] font-mono text-gray-400">
-              {input.length > 0 ? `${input.length} 文字` : "⌘ + Enterで送信"}
+              {input.length > 0 && `${input.length} 文字`}
             </div>
             <button
               type="submit"

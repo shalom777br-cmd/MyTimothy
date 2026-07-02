@@ -791,8 +791,13 @@ app.get("/api/temote/data", async (req, res) => {
 
     return res.json({ source: "supabase", data });
   } catch (err: any) {
-    console.error("Error fetching from Supabase:", err);
-    return res.status(500).json({ error: "Failed to fetch data from Supabase" });
+    console.warn("Supabase fetch debug info:", err?.message || err);
+    return res.json({
+      source: "local",
+      data: null,
+      error: err.message,
+      suggestion: "Please ensure that the 'temote_user_data' table is created in your Supabase database."
+    });
   }
 });
 
@@ -828,8 +833,12 @@ app.post("/api/temote/data", async (req, res) => {
 
     return res.json({ success: true, data });
   } catch (err: any) {
-    console.error("Error saving to Supabase:", err);
-    return res.status(500).json({ error: "Failed to save data to Supabase" });
+    console.warn("Supabase save debug info:", err?.message || err);
+    return res.json({
+      success: false,
+      error: err.message,
+      suggestion: "Please ensure that the 'temote_user_data' table is created in your Supabase database."
+    });
   }
 });
 

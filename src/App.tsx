@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
-import { Sparkles, Bell, LayoutDashboard, History, Settings as SettingsIcon, LogIn, LogOut, Loader2, Info } from "lucide-react";
+import { Sparkles, Bell, LayoutDashboard, History, Settings as SettingsIcon, LogIn, LogOut, Loader2, Info, AlertTriangle } from "lucide-react";
 import { Project, Task, HistoryItem, Settings, CalendarEvent } from "./types";
 import { initialProjects, initialTasks, initialHistory, initialSettings } from "./data/initialData";
 import { StatusInput } from "./components/StatusInput";
 import { HomeView } from "./components/HomeView";
-import { ProjectsPanel } from "./components/ProjectsPanel";
 import { SettingsView } from "./components/SettingsView";
 import { AuthModal } from "./components/AuthModal";
 import { CuteTemoteLogo } from "./components/CuteTemoteLogo";
 import { DailySchedulePanel } from "./components/DailySchedulePanel";
 import { CalendarPanel } from "./components/CalendarPanel";
+import { HeldJobsList } from "./components/HeldJobsList";
 
 export default function App() {
   // Session Authentication State (Synchronous initialization to prevent race conditions on reload)
@@ -149,8 +149,11 @@ export default function App() {
   const [showNotificationBanner, setShowNotificationBanner] = useState(true);
 
   const [recommendedTask, setRecommendedTask] = useState<Task | null>(null);
-  const [recommendationReason, setRecommendationReason] = useState<string>("");
+  const [recommendationReason, setRecommendationReason] = useState<string>(
+    ""
+  );
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
+  const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
   // Save guest sandbox states to keep session alive during sandbox play
   useEffect(() => {
@@ -242,6 +245,11 @@ export default function App() {
       const response = await fetch(`/api/temote/data?email=${encodeURIComponent(email)}`);
       if (response.ok) {
         const result = await response.json();
+        if (result.error) {
+          setSupabaseError(result.error);
+        } else {
+          setSupabaseError(null);
+        }
         if (result.source === "supabase" && result.data) {
           const sData = result.data;
           const parsedProj = sData.projects || activeProj;
@@ -288,7 +296,7 @@ export default function App() {
     localStorage.setItem(`${keyPrefix}_events`, JSON.stringify(evts));
 
     try {
-      await fetch("/api/temote/data", {
+      const response = await fetch("/api/temote/data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -300,6 +308,14 @@ export default function App() {
           events: evts,
         }),
       });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.error) {
+          setSupabaseError(result.error);
+        } else {
+          setSupabaseError(null);
+        }
+      }
     } catch (e) {
       console.warn("Could not save to Supabase.", e);
     }
@@ -924,6 +940,60 @@ export default function App() {
 
       {/* Main Container Layout */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-5">
+
+        {/* Supabase Error / SQL Schema Setup Banner */}
+        {supabaseError && (
+          <div className="bg-amber-50/95 border border-amber-200 rounded-2xl p-5 mb-5 text-xs text-amber-900 animate-fade-in relative shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 rounded-lg text-amber-600 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-3 flex-1">
+                <h3 className="font-bold text-sm text-amber-950">Supabaseのテーブル設定が必要です</h3>
+                <p className="text-amber-800 leading-relaxed text-xs">
+                  Supabaseの接続情報（URLとANON KEY）は設定されていますが、データを格納するためのテーブル <code>temote_user_data</code> がデータベース内に存在しない、またはポリシーが不適切です。現在データはローカルストレージに安全に保存されています。
+                </p>
+                <div className="space-y-1.5">
+                  <span className="font-bold text-[10px] text-amber-900 uppercase tracking-wider block">【解決方法】SupabaseのSQL Editorで以下のSQLを実行してください：</span>
+                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-xl overflow-x-auto text-[10px] font-mono leading-relaxed select-all">
+{`create table if not exists temote_user_data (
+  email text primary key,
+  projects jsonb default '[]'::jsonb,
+  tasks jsonb default '[]'::jsonb,
+  history jsonb default '[]'::jsonb,
+  settings jsonb default '{}'::jsonb,
+  events jsonb default '[]'::jsonb,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- RLS（Row Level Security）を有効にして、ログイン中ユーザーが自身のemailデータのみアクセス可能にする
+alter table temote_user_data enable row level security;
+
+create policy "Users can select their own row"
+  on temote_user_data for select
+  using (auth.email() = email);
+
+create policy "Users can insert their own row"
+  on temote_user_data for insert
+  with check (auth.email() = email);
+
+create policy "Users can update their own row"
+  on temote_user_data for update
+  using (auth.email() = email)
+  with check (auth.email() = email);`}
+                  </pre>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSupabaseError(null)} 
+                className="text-amber-500 hover:text-amber-700 font-bold px-2 py-1 rounded-lg hover:bg-amber-100/50 absolute top-4 right-4 text-sm transition-colors"
+                title="閉じる"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
         
         {/* Dashboard Grid (Bento Layout) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -931,20 +1001,6 @@ export default function App() {
           {/* Main Workspace (Left Area on desktop) */}
           <div className="sm:col-span-2 space-y-4">
             
-            {/* Project List & Task Manager */}
-            <ProjectsPanel
-              projects={projects}
-              tasks={tasks}
-              onAddProject={handleAddProject}
-              onAddTask={handleAddTask}
-              onToggleTask={handleToggleTask}
-              onDeleteProject={handleDeleteProject}
-              onDeleteTask={handleDeleteTask}
-              onDeleteDummyData={handleDeleteDummyData}
-              onUpdateProject={handleUpdateProject}
-              onUpdateTask={handleUpdateTask}
-            />
-
             {/* AI Greeting, suggestion, timer */}
             <HomeView
               greeting={temoteGreeting}
@@ -988,6 +1044,15 @@ export default function App() {
               isGuest={!isLoggedIn}
               latestFeedback={temoteGreeting}
             />
+
+            {/* List of Held Jobs shown specifically when logged in */}
+            {isLoggedIn && (
+              <HeldJobsList
+                projects={projects}
+                tasks={tasks}
+                onToggleTask={handleToggleTask}
+              />
+            )}
 
             {/* History Logs */}
             <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs transition-all hover:shadow-sm duration-300">
