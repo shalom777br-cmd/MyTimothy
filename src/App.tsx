@@ -367,6 +367,21 @@ export default function App() {
   // Fetch morning notification (one task to focus)
   const fetchAINotification = async () => {
     try {
+      const notifyStateKey = JSON.stringify({
+        projects: projects.map(p => ({ id: p.id, progress_percent: p.progress_percent })),
+        tasks: tasks.map(t => ({ id: t.id, done: t.done })),
+        date: new Date().toISOString().split('T')[0] // today's date
+      });
+
+      const cachedNotifyHash = localStorage.getItem("temote_notify_state_hash");
+      const cachedNotifyMsg = localStorage.getItem("temote_notify_cached_msg");
+
+      if (cachedNotifyHash === notifyStateKey && cachedNotifyMsg) {
+        setMorningNotification(cachedNotifyMsg);
+        setShowNotificationBanner(true);
+        return;
+      }
+
       const response = await fetch("/api/temote/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -383,6 +398,9 @@ export default function App() {
         if (data.isFallback) {
           setGeminiFallbackActive(true);
           setGeminiErrorMsg(data.apiError || "");
+        } else {
+          localStorage.setItem("temote_notify_state_hash", notifyStateKey);
+          localStorage.setItem("temote_notify_cached_msg", data.message);
         }
       }
     } catch (e) {
@@ -394,6 +412,23 @@ export default function App() {
   const fetchAISuggestion = async (currentProj: Project[], currentTasks: Task[], lastDoneTask: any = null) => {
     setLoadingSuggestion(true);
     try {
+      const stateKey = JSON.stringify({
+        projects: currentProj.map(p => ({ id: p.id, progress_percent: p.progress_percent })),
+        tasks: currentTasks.map(t => ({ id: t.id, done: t.done })),
+        lastCompleted: lastDoneTask ? lastDoneTask.id : null
+      });
+
+      const cachedHash = localStorage.getItem("temote_suggestion_state_hash");
+      const cachedData = localStorage.getItem("temote_suggestion_cached_data");
+
+      if (cachedHash === stateKey && cachedData && !lastDoneTask) {
+        const parsed = JSON.parse(cachedData);
+        setRecommendedTask(parsed.task);
+        setRecommendationReason(parsed.reason);
+        setLoadingSuggestion(false);
+        return;
+      }
+
       const storedPat = localStorage.getItem("temote_github_pat") || "";
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (storedPat) {
@@ -420,6 +455,13 @@ export default function App() {
           // If suggestion returned a brand new suggested task, merge it or use it as is
           setRecommendedTask(data.task);
           setRecommendationReason(data.reason);
+          if (!data.isFallback) {
+            localStorage.setItem("temote_suggestion_state_hash", stateKey);
+            localStorage.setItem("temote_suggestion_cached_data", JSON.stringify({
+              task: data.task,
+              reason: data.reason
+            }));
+          }
         } else {
           setRecommendedTask(null);
           setRecommendationReason("");

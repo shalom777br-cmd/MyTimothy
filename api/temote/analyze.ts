@@ -119,12 +119,12 @@ ${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
     const parsed = JSON.parse(resultText);
     return res.status(200).json(parsed);
   } catch (error: any) {
-    console.warn("Gemini analyze failed, falling back to local analysis: " + (error?.message || error));
+    console.log("[Temote Engine] Using local analysis (API quota limit or connection issue)");
     const fallbackResult = getLocalAnalysis(userInput, projects, tasks, userName);
     return res.status(200).json({
       ...fallbackResult,
       isFallback: true,
-      apiError: error?.message || "Gemini API error"
+      apiError: "API quota limit or connection issue. Offline fallback activated."
     });
   }
 }

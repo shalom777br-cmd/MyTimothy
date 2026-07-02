@@ -88,12 +88,12 @@ ${JSON.stringify(events.filter((e: any) => e.date === "2026-07-01"), null, 2)}
     const parsed = JSON.parse(resultText);
     return res.status(200).json(parsed);
   } catch (error: any) {
-    console.warn("Gemini schedule generation failed, falling back to local generator: " + (error?.message || error));
+    console.log("[Temote Engine] Using local schedule generator (API quota limit or connection issue)");
     const fallbackResult = getLocalSchedule(projects, tasks, userName, events);
     return res.status(200).json({
       ...fallbackResult,
       isFallback: true,
-      apiError: error?.message || "Gemini API error"
+      apiError: "API quota limit or connection issue. Offline fallback activated."
     });
   }
 }

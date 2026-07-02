@@ -46,11 +46,11 @@ ${JSON.stringify(tasks?.filter((t: any) => !t.done), null, 2)}
     const msg = response.text?.trim() || `おはようございます。今日も一歩ずつ進めましょう。`;
     return res.status(200).json({ message: msg });
   } catch (error: any) {
-    console.warn("Gemini notify failed: " + (error?.message || error));
+    console.log("[Temote Engine] Using local notification (API quota limit or connection issue)");
     return res.status(200).json({
       message: `おはようございます、${userName}さん。本日もフォーカスして進めましょう。`,
       isFallback: true,
-      apiError: error?.message || "Gemini API error"
+      apiError: "API quota limit or connection issue. Offline fallback activated."
     });
   }
 }

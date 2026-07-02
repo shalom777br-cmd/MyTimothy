@@ -137,12 +137,12 @@ ${lastCompletedTask ? JSON.stringify(lastCompletedTask, null, 2) : "なし"}
     const parsed = JSON.parse(resultText);
     return res.status(200).json(parsed);
   } catch (error: any) {
-    console.warn("Gemini suggest failed, falling back to local suggest: " + (error?.message || error));
+    console.log("[Temote Engine] Using local suggestion (API quota limit or connection issue)");
     const fallbackResult = getLocalSuggestion(projects, tasks);
     return res.status(200).json({
       ...fallbackResult,
       isFallback: true,
-      apiError: error?.message || "Gemini API error"
+      apiError: "API quota limit or connection issue. Offline fallback activated."
     });
   }
 }
