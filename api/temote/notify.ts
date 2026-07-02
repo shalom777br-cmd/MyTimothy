@@ -1,4 +1,4 @@
-import { ai, setCorsHeaders } from "../_shared";
+import { ai, setCorsHeaders } from "../_shared.js";
 
 export default async function handler(req: any, res: any) {
   if (setCorsHeaders(req, res)) return;

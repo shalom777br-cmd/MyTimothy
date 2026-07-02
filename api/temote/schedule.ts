@@ -1,4 +1,4 @@
-import { ai, Type, getLocalSchedule, setCorsHeaders } from "../_shared";
+import { ai, Type, getLocalSchedule, setCorsHeaders } from "../_shared.js";
 
 export default async function handler(req: any, res: any) {
   if (setCorsHeaders(req, res)) return;
