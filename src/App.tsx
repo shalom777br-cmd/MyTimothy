@@ -165,12 +165,18 @@ export default function App() {
 
   // Fetch initial AI recommendation & morning notification on mount/session changes
   useEffect(() => {
-    fetchAINotification();
-    fetchAISuggestion(projects, tasks);
+    const init = async () => {
+      if (isLoggedIn && userEmail) {
+        await loadUserData(userEmail);
+      }
+      fetchAINotification();
+      fetchAISuggestion(projects, tasks);
+    };
+    init();
   }, [isLoggedIn, userEmail]);
 
   // Handle load from specific user email
-  const loadUserData = (email: string) => {
+  const loadUserData = async (email: string) => {
     const keyPrefix = `temote_user_${email}`;
     const userProj = localStorage.getItem(`${keyPrefix}_projects`);
     const userTasks = localStorage.getItem(`${keyPrefix}_tasks`);
@@ -178,89 +184,95 @@ export default function App() {
     const userSett = localStorage.getItem(`${keyPrefix}_settings`);
     const userEvents = localStorage.getItem(`${keyPrefix}_events`);
 
-    if (userProj && userTasks && userHist && userSett) {
-      const parsedProj = JSON.parse(userProj);
-      const parsedTasks = JSON.parse(userTasks);
-      const parsedHist = JSON.parse(userHist);
-      const parsedSett = JSON.parse(userSett);
-      setProjects(parsedProj);
-      setTasks(parsedTasks);
-      setHistory(parsedHist);
-      setSettings(parsedSett);
-      if (userEvents) {
-        setEvents(JSON.parse(userEvents));
-      } else {
-        const sampleEvts: CalendarEvent[] = [
-          {
-            id: "evt-initial-1",
-            title: "A社キックオフ・要件定義ミーティング",
-            date: "2026-07-01",
-            time: "10:00",
-            duration_minutes: 60,
-            project_id: "proj-050call",
-            type: "meeting",
-            description: "新規コールシステムの要件についての初顔合わせMTG"
-          },
-          {
-            id: "evt-initial-2",
-            title: "渋谷オフィス訪問 & 打合せ",
-            date: "2026-07-01",
-            time: "14:00",
-            duration_minutes: 90,
-            project_id: "proj-concertante",
-            type: "transit",
-            description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
-          },
-          {
-            id: "evt-initial-3",
-            title: "ブラジル日記 第3章 執筆完了目標",
-            date: "2026-07-05",
-            time: "15:00",
-            duration_minutes: 60,
-            project_id: "proj-brazil-diary",
-            type: "work",
-            description: "静的サイト化の移行にむけた、第3章の編集作業。"
-          }
-        ];
-        setEvents(sampleEvts);
-        saveUserData(email, parsedProj, parsedTasks, parsedHist, parsedSett, sampleEvts);
+    let activeProj = initialProjects;
+    let activeTasks = initialTasks;
+    let activeHist = initialHistory;
+    let activeSett = initialSettings;
+    let activeEvents: CalendarEvent[] = [
+      {
+        id: "evt-initial-1",
+        title: "A社キックオフ・要件定義ミーティング",
+        date: "2026-07-01",
+        time: "10:00",
+        duration_minutes: 60,
+        project_id: "proj-050call",
+        type: "meeting",
+        description: "新規コールシステムの要件についての初顔合わせMTG"
+      },
+      {
+        id: "evt-initial-2",
+        title: "渋谷オフィス訪問 & 打合せ",
+        date: "2026-07-01",
+        time: "14:00",
+        duration_minutes: 90,
+        project_id: "proj-concertante",
+        type: "transit",
+        description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
+      },
+      {
+        id: "evt-initial-3",
+        title: "ブラジル日記 第3章 執筆完了目標",
+        date: "2026-07-05",
+        time: "15:00",
+        duration_minutes: 60,
+        project_id: "proj-brazil-diary",
+        type: "work",
+        description: "静的サイト化の移行にむけた、第3章の編集作業。"
       }
-    } else {
-      // Setup initial dummy database for new registered users
-      setProjects(initialProjects);
-      setTasks(initialTasks);
-      setHistory(initialHistory);
-      setSettings(initialSettings);
-      
-      const sampleEvts: CalendarEvent[] = [
-        {
-          id: "evt-initial-1",
-          title: "A社キックオフ・要件定義ミーティング",
-          date: "2026-07-01",
-          time: "10:00",
-          duration_minutes: 60,
-          project_id: "proj-050call",
-          type: "meeting",
-          description: "新規コールシステムの要件についての初顔合わせMTG"
-        },
-        {
-          id: "evt-initial-2",
-          title: "渋谷オフィス訪問 & 打合せ",
-          date: "2026-07-01",
-          time: "14:00",
-          duration_minutes: 90,
-          project_id: "proj-concertante",
-          type: "transit",
-          description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
+    ];
+
+    if (userProj && userTasks && userHist && userSett) {
+      activeProj = JSON.parse(userProj);
+      activeTasks = JSON.parse(userTasks);
+      activeHist = JSON.parse(userHist);
+      activeSett = JSON.parse(userSett);
+      if (userEvents) {
+        activeEvents = JSON.parse(userEvents);
+      }
+    }
+
+    setProjects(activeProj);
+    setTasks(activeTasks);
+    setHistory(activeHist);
+    setSettings(activeSett);
+    setEvents(activeEvents);
+
+    // Sync with Supabase asynchronously
+    try {
+      const response = await fetch(`/api/temote/data?email=${encodeURIComponent(email)}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.source === "supabase" && result.data) {
+          const sData = result.data;
+          const parsedProj = sData.projects || activeProj;
+          const parsedTasks = sData.tasks || activeTasks;
+          const parsedHist = sData.history || activeHist;
+          const parsedSett = sData.settings || activeSett;
+          const parsedEvents = sData.events || activeEvents;
+
+          setProjects(parsedProj);
+          setTasks(parsedTasks);
+          setHistory(parsedHist);
+          setSettings(parsedSett);
+          setEvents(parsedEvents);
+
+          localStorage.setItem(`${keyPrefix}_projects`, JSON.stringify(parsedProj));
+          localStorage.setItem(`${keyPrefix}_tasks`, JSON.stringify(parsedTasks));
+          localStorage.setItem(`${keyPrefix}_history`, JSON.stringify(parsedHist));
+          localStorage.setItem(`${keyPrefix}_settings`, JSON.stringify(parsedSett));
+          localStorage.setItem(`${keyPrefix}_events`, JSON.stringify(parsedEvents));
+        } else if (result.source === "supabase" && !result.data) {
+          // No record on Supabase yet, populate it with current active data
+          await saveUserData(email, activeProj, activeTasks, activeHist, activeSett, activeEvents);
         }
-      ];
-      setEvents(sampleEvts);
-      saveUserData(email, initialProjects, initialTasks, initialHistory, initialSettings, sampleEvts);
+      }
+    } catch (e) {
+      console.warn("Could not sync with Supabase.", e);
     }
   };
 
   // Save specific user data to simulate RLS
-  const saveUserData = (
+  const saveUserData = async (
     email: string,
     p: Project[],
     t: Task[],
@@ -274,6 +286,23 @@ export default function App() {
     localStorage.setItem(`${keyPrefix}_history`, JSON.stringify(h));
     localStorage.setItem(`${keyPrefix}_settings`, JSON.stringify(s));
     localStorage.setItem(`${keyPrefix}_events`, JSON.stringify(evts));
+
+    try {
+      await fetch("/api/temote/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          projects: p,
+          tasks: t,
+          history: h,
+          settings: s,
+          events: evts,
+        }),
+      });
+    } catch (e) {
+      console.warn("Could not save to Supabase.", e);
+    }
   };
 
   // Auto-save when logged-in data changes

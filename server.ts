@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI, Type } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
@@ -9,6 +10,22 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Initialize Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
+let supabase: any = null;
+
+if (supabaseUrl && supabaseAnonKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
+    console.log("Supabase Client initialized successfully.");
+  } catch (error) {
+    console.error("Failed to initialize Supabase Client:", error);
+  }
+} else {
+  console.warn("Supabase credentials not found. Falling back to LocalStorage persistence.");
+}
 
 // Initialize Gemini Client
 let ai: GoogleGenAI | null = null;
@@ -747,6 +764,72 @@ ${JSON.stringify(events.filter((e: any) => e.date === "2026-07-01"), null, 2)}
     console.warn("Gemini schedule generation failed, falling back to local generator", error);
     const fallbackResult = getLocalSchedule(projects, tasks, userName, events);
     res.json(fallbackResult);
+  }
+});
+
+// 5. Get user data from Supabase
+app.get("/api/temote/data", async (req, res) => {
+  const { email } = req.query;
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  if (!supabase) {
+    return res.json({ source: "local", data: null });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("temote_user_data")
+      .select("*")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({ source: "supabase", data });
+  } catch (err: any) {
+    console.error("Error fetching from Supabase:", err);
+    return res.status(500).json({ error: "Failed to fetch data from Supabase" });
+  }
+});
+
+// 6. Save or update user data in Supabase (UPSERT)
+app.post("/api/temote/data", async (req, res) => {
+  const { email, projects, tasks, history, settings, events } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  if (!supabase) {
+    return res.json({ success: false, reason: "Supabase not initialized" });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("temote_user_data")
+      .upsert({
+        email,
+        projects: projects || [],
+        tasks: tasks || [],
+        history: history || [],
+        settings: settings || {},
+        events: events || [],
+        updated_at: new Date().toISOString()
+      }, { onConflict: "email" })
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({ success: true, data });
+  } catch (err: any) {
+    console.error("Error saving to Supabase:", err);
+    return res.status(500).json({ error: "Failed to save data to Supabase" });
   }
 });
 
