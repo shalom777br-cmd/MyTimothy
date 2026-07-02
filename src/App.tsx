@@ -10,6 +10,7 @@ import { CuteTemoteLogo } from "./components/CuteTemoteLogo";
 import { DailySchedulePanel } from "./components/DailySchedulePanel";
 import { CalendarPanel } from "./components/CalendarPanel";
 import { HeldJobsList } from "./components/HeldJobsList";
+import { GithubSettings } from "./components/GithubSettings";
 
 export default function App() {
   // Session Authentication State (Synchronous initialization to prevent race conditions on reload)
@@ -387,9 +388,14 @@ export default function App() {
   const fetchAISuggestion = async (currentProj: Project[], currentTasks: Task[], lastDoneTask: any = null) => {
     setLoadingSuggestion(true);
     try {
+      const storedPat = localStorage.getItem("temote_github_pat") || "";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (storedPat) {
+        headers["X-GitHub-Token"] = storedPat;
+      }
       const response = await fetch("/api/temote/suggest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           projects: currentProj,
           tasks: currentTasks,
@@ -1045,14 +1051,13 @@ create policy "Users can update their own row"
               latestFeedback={temoteGreeting}
             />
 
-            {/* List of Held Jobs shown specifically when logged in */}
-            {isLoggedIn && (
-              <HeldJobsList
-                projects={projects}
-                tasks={tasks}
-                onToggleTask={handleToggleTask}
-              />
-            )}
+            {/* List of Held Jobs / Active Projects & Tasks */}
+            <HeldJobsList
+              projects={projects}
+              tasks={tasks}
+              onToggleTask={handleToggleTask}
+              onUpdateProject={handleUpdateProject}
+            />
 
             {/* History Logs */}
             <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs transition-all hover:shadow-sm duration-300">
@@ -1089,6 +1094,13 @@ create policy "Users can update their own row"
               onUpdateSettings={updateSettingsAndSave}
               onDeleteDummyData={handleDeleteDummyData}
               onClearAllData={handleClearAllData}
+            />
+
+            {/* GitHub Settings & Indicator */}
+            <GithubSettings 
+              onTokenChange={() => {
+                fetchAISuggestion(projects, tasks);
+              }}
             />
           </div>
 

@@ -518,7 +518,7 @@ ${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
             },
             completedTaskIds: {
               type: Type.ARRAY,
-              description: "完了した既存タスクのID一覧",
+              description: "完了した既存タスク of ID一覧",
               items: { type: Type.STRING }
             }
           },
@@ -537,7 +537,7 @@ ${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
   }
 });
 
-// 2. Suggest today's single best task based on 5 rules
+// 2. Suggest today's single best task based on 5 rules + GitHub Repo Activity if connected
 app.post("/api/temote/suggest", async (req, res) => {
   const { projects: rawProjects, tasks: rawTasks, settings, lastCompletedTask } = req.body;
   const projects = Array.isArray(rawProjects) ? rawProjects : [];
@@ -551,6 +551,39 @@ app.post("/api/temote/suggest", async (req, res) => {
     });
   }
 
+  // Gather GitHub repo details for any connected projects
+  const githubProjectsInfo: any[] = [];
+  const clientToken = req.headers["x-github-token"];
+  const customToken = typeof clientToken === "string" ? clientToken : undefined;
+
+  try {
+    const projectsWithRepo = projects.filter((p: any) => p && p.github_repo);
+    const fetchPromises = projectsWithRepo.map(async (p: any) => {
+      const info = await getGithubInfoHelper(p.github_repo, customToken);
+      if (info) {
+        return {
+          project_id: p.id,
+          project_name: p.name,
+          github_repo: p.github_repo,
+          github_data: {
+            full_name: info.full_name,
+            description: info.description,
+            open_issues: info.open_issues,
+            pushed_at: info.pushed_at,
+            latestCommit: info.latestCommit,
+          }
+        };
+      }
+      return null;
+    });
+    const results = await Promise.all(fetchPromises);
+    results.forEach((r) => {
+      if (r) githubProjectsInfo.push(r);
+    });
+  } catch (err) {
+    console.warn("Error gathering github info for suggest route:", err);
+  }
+
   if (!ai) {
     const fallbackResult = getLocalSuggestion(projects, tasks);
     return res.json(fallbackResult);
@@ -561,11 +594,21 @@ app.post("/api/temote/suggest", async (req, res) => {
 今日、ユーザーが取り組むべき『たった一つのタスク』を以下の優先順位（提案ロジック）に基づいて選び、または新しく考案してください：
 
 【提案ロジックの優先順位】
-1. 完成まで近いもの (進捗 progress_percent が 80%〜90% などの高いプロジェクトのタスク)
+1. 完成まで近いもの (進捗 progress_percent が 80%〜90% などの高いプロジェクト of タスク)
 2. 締切が近いもの (deadline が近いプロジェクトやタスク)
 3. 効果が大きいもの (priority が high のタスク)
 4. 所要時間が短いもの (短い時間、例えば15〜25分で片付くタスク)
 5. ユーザーが最近興味を持っているもの (last_worked_at が最近のプロジェクト)
+
+【連携されているGitHubの状況情報】
+${githubProjectsInfo.length > 0 ? JSON.stringify(githubProjectsInfo, null, 2) : "なし"}
+
+【追加の最重要分析ルール（GitHub状況の把握）】
+- もしプロジェクトに連携されたGitHubリポジトリの情報（最新コミットメッセージ、更新日時、オープンなIssueなど）が存在する場合、それを深く分析して提案に組み込んでください。
+- 直前のコミットや更新内容から「次に行うべき開発タスク」をGeminiとして論理的に予測・提案してください。
+  - 例：直前のコミットメッセージが「fix: add bounds check」であれば、次のタスクとして「境界値チェックの単体テストを実装する」や「エラーハンドリングの動作確認」を新規に考案して提案してください。
+  - 例：最新コミットが「feat: setup database schema」であれば、次のタスクとして「マイグレーションの実行と初期データのシード」や「モデル層の定義」を提案してください。
+- 提案理由（reason）には、GitHubの状況を踏まえたものであることを一目でわかるように説明してください。（例：「最新コミット『〇〇』の修正を踏まえ、次の〇〇テストを行うのがおすすめです」）
 
 【既存プロジェクト】
 ${JSON.stringify(projects, null, 2)}
@@ -577,7 +620,7 @@ ${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
 ${lastCompletedTask ? JSON.stringify(lastCompletedTask, null, 2) : "なし"}
 
 ユーザーに今日提案する最高の一歩を決定し、以下のJSON形式で返してください。
-もし既存の未完了タスクに適切なものがない場合は、現在のプロジェクト状況を踏まえて、今日取り組むべき現実的で魅力的なタスクを新規作成（考案）して提案してください！
+もし既存の未完了タスクに適切なものがない場合は、現在のプロジェクト状況やGitHubのコミット履歴を踏まえて、今日取り組むべき現実的で魅力的なタスクを新規作成（考案）して提案してください！
 
 【出力JSONフォーマット】
 {
@@ -585,12 +628,12 @@ ${lastCompletedTask ? JSON.stringify(lastCompletedTask, null, 2) : "なし"}
     "id": "既存のタスクID。新規に考案したタスクの場合は、新規IDとして 'suggested-new-xx' などの形式にしてください。",
     "project_id": "紐づくプロジェクトのID",
     "title": "タスクのタイトル（簡潔・行動を促す1文）",
-    "estimated_minutes": 予想時間（数値。例えば25や30など、集中しやすい25分前後を推奨）,,
+    "estimated_minutes": 予想時間（数値。例えば25や30など、集中しやすい25分前後を推奨）,
     "priority": "high" | "medium" | "low",
     "ai_assignee": "claude" | "gemini" | "chatgpt" （コード系タスクは claude、文章は chatgpt/claude、ビジュアル・画像・デザインは gemini、今日の提案等は gemini）,
     "done": false
   },
-  "reason": "なぜこのタスクが今おすすめなのかを秘書として丁寧に、かつ1文（35文字以内）で説明した文章。"
+  "reason": "なぜこのタスクが今おすすめなのかを秘書として丁寧に、かつ1文（60文字以内）で説明した文章。GitHubの情報から導き出した場合はその旨を含めてください。"
 }`;
 
     const response = await ai.models.generateContent({
@@ -838,6 +881,176 @@ app.post("/api/temote/data", async (req, res) => {
       success: false,
       error: err.message,
       suggestion: "Please ensure that the 'temote_user_data' table is created in your Supabase database."
+    });
+  }
+});
+
+// Helper function to extract owner/repo from raw string or URL
+function parseGithubRepo(repoStr: string): { owner: string; repo: string } | null {
+  if (!repoStr) return null;
+  let clean = repoStr.trim();
+  try {
+    if (clean.startsWith("http://") || clean.startsWith("https://")) {
+      const url = new URL(clean);
+      if (url.hostname === "github.com" || url.hostname.endsWith(".github.com")) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length >= 2) {
+          return { owner: parts[0], repo: parts[1].replace(/\.git$/, "") };
+        }
+      }
+    }
+  } catch (e) {
+    // URL parsing failed, fallback to string format
+  }
+
+  const parts = clean.split("/").filter(Boolean);
+  if (parts.length === 2) {
+    return { owner: parts[0], repo: parts[1] };
+  }
+  
+  return null;
+}
+
+// Reusable helper to fetch detailed repository & latest commit info from GitHub
+async function getGithubInfoHelper(repoStr: string, customToken?: string): Promise<any> {
+  const parsed = parseGithubRepo(repoStr);
+  if (!parsed) return null;
+
+  const { owner, repo: repoName } = parsed;
+  const token = customToken || process.env.GITHUB_PAT || process.env.GITHUB_TOKEN;
+
+  const headers: Record<string, string> = {
+    "Accept": "application/vnd.github.v3+json",
+    "User-Agent": "Temote-App",
+  };
+
+  if (token) {
+    headers["Authorization"] = `token ${token}`;
+  }
+
+  try {
+    const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, { headers });
+    if (!repoRes.ok) {
+      return null;
+    }
+    const repoData: any = await repoRes.json();
+
+    const commitRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/commits?per_page=1`, { headers });
+    let latestCommit = null;
+    if (commitRes.ok) {
+      const commits: any = await commitRes.json();
+      if (Array.isArray(commits) && commits.length > 0) {
+        const commitObj = commits[0];
+        latestCommit = {
+          sha: commitObj.sha,
+          message: commitObj.commit?.message,
+          author_name: commitObj.commit?.author?.name,
+          author_email: commitObj.commit?.author?.email,
+          date: commitObj.commit?.author?.date,
+          html_url: commitObj.html_url,
+        };
+      }
+    }
+
+    return {
+      name: repoData.name,
+      full_name: repoData.full_name,
+      description: repoData.description,
+      html_url: repoData.html_url,
+      stars: repoData.stargazers_count,
+      forks: repoData.forks_count,
+      open_issues: repoData.open_issues_count,
+      pushed_at: repoData.pushed_at,
+      latestCommit,
+    };
+  } catch (error) {
+    console.warn(`Error in getGithubInfoHelper for ${repoStr}:`, error);
+    return null;
+  }
+}
+
+// 7. Fetch GitHub Repository & Latest Commit Info
+app.get("/api/github/repo-info", async (req, res) => {
+  const { repo } = req.query;
+  if (!repo || typeof repo !== "string") {
+    return res.status(400).json({ error: "Repository identifier or URL is required" });
+  }
+
+  const parsed = parseGithubRepo(repo);
+  if (!parsed) {
+    return res.status(400).json({ error: "Invalid GitHub repository format. Use 'owner/repo' or a full GitHub URL." });
+  }
+
+  try {
+    const clientToken = req.headers["x-github-token"];
+    const customToken = typeof clientToken === "string" ? clientToken : undefined;
+
+    const info = await getGithubInfoHelper(repo, customToken);
+    if (!info) {
+      return res.status(404).json({ error: `Repository not found or unable to access. Please verify if it is public or check your GITHUB_PAT.` });
+    }
+    return res.json(info);
+  } catch (error: any) {
+    console.warn("Error fetching from GitHub:", error);
+    return res.status(500).json({ error: `Failed to fetch from GitHub: ${error.message}` });
+  }
+});
+
+// 8. GitHub Connection Status & Token Verification
+app.get("/api/github/status", async (req, res) => {
+  const serverTokenSet = !!(process.env.GITHUB_PAT || process.env.GITHUB_TOKEN);
+  const clientToken = req.headers["x-github-token"];
+  const token = (typeof clientToken === "string" && clientToken) || process.env.GITHUB_PAT || process.env.GITHUB_TOKEN;
+
+  if (!token) {
+    return res.json({
+      authenticated: false,
+      serverTokenSet,
+      rateLimit: null,
+      message: "GitHub Personal Access Token is not configured."
+    });
+  }
+
+  const headers: Record<string, string> = {
+    "Accept": "application/vnd.github.v3+json",
+    "User-Agent": "Temote-App",
+    "Authorization": `token ${token}`
+  };
+
+  try {
+    const userRes = await fetch("https://api.github.com/user", { headers });
+    const rateRes = await fetch("https://api.github.com/rate_limit", { headers });
+    
+    let username = null;
+    let scopes: string[] = [];
+    if (userRes.ok) {
+      const userData = await userRes.json();
+      username = userData.login;
+      const scopesHeader = userRes.headers.get("x-oauth-scopes");
+      if (scopesHeader) {
+        scopes = scopesHeader.split(",").map((s: string) => s.trim());
+      }
+    }
+
+    let rateLimit = null;
+    if (rateRes.ok) {
+      const rateData = await rateRes.json();
+      rateLimit = rateData.resources?.core;
+    }
+
+    return res.json({
+      authenticated: userRes.ok,
+      username,
+      scopes,
+      serverTokenSet,
+      rateLimit,
+      statusCode: userRes.status
+    });
+  } catch (error: any) {
+    return res.json({
+      authenticated: false,
+      serverTokenSet,
+      error: error.message
     });
   }
 });

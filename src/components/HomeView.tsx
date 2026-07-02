@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Clock, Play, Pause, RotateCcw, Check, Shuffle, Sparkles, Loader2, Compass } from "lucide-react";
+import { Clock, Play, Pause, RotateCcw, Check, Shuffle, Sparkles, Loader2, Compass, Github } from "lucide-react";
 import { Project, Task } from "../types";
 
 interface HomeViewProps {
@@ -187,6 +187,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <span className="text-[9.5px] text-gray-400 uppercase tracking-wider">予想時間</span>
                     <span className="text-base font-mono tracking-tighter italic font-medium text-gray-800">{recommendedTask.estimated_minutes}分</span>
                   </div>
+                  {suggestedProject?.github_repo && (
+                    <>
+                      <span className="text-gray-300">•</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border bg-gray-50 border-gray-200 text-[#24292F] font-mono">
+                        <Github className="w-3 h-3 text-[#24292F]" />
+                        <span>GitHub状況分析</span>
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <h2 className="text-base sm:text-lg font-semibold tracking-tight text-[#1D1D1F] leading-snug font-display">

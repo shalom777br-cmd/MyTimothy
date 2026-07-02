@@ -8,6 +8,7 @@ export interface Project {
   progress_percent: number;
   deadline?: string;
   last_worked_at?: string;
+  github_repo?: string; // e.g. "owner/repo" or "https://github.com/owner/repo"
 }
 
 export interface Task {
