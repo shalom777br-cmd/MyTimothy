@@ -7,31 +7,34 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const { projects: rawProjects, tasks: rawTasks, settings, events: rawEvents } = req.body || {};
+  const { projects: rawProjects, tasks: rawTasks, settings, events: rawEvents, targetDate } = req.body || {};
   const projects = Array.isArray(rawProjects) ? rawProjects : [];
   const tasks = Array.isArray(rawTasks) ? rawTasks : [];
   const events = Array.isArray(rawEvents) ? rawEvents : [];
   const userName = settings?.name || "ジョアンナ";
+  const dateToUse = targetDate || "2026-07-01";
 
   if (!ai) {
-    const fallbackResult = getLocalSchedule(projects, tasks, userName, events);
+    const fallbackResult = getLocalSchedule(projects, tasks, userName, events, dateToUse);
     return res.status(200).json(fallbackResult);
   }
 
   try {
     const systemPrompt = `あなたは優秀で謙虚なAI秘書「テモテ」です。
 ユーザー名: ${userName}
-今日のスケジュール（1日、例えば 09:00 〜 18:00）を、ユーザーが持っている「プロジェクト」「タスク（未完了のもの）」「それぞれの進行状況」「締め切り」、および「カレンダーの確定予定（あれば）」を完全に考慮して、最も効率的かつ現実的な1日のタイムスケジュール（スケジュール表）として提案してください。
+対象日: ${dateToUse}
+
+対象日（${dateToUse}の 09:00 〜 18:00）のスケジュールを、ユーザーが持っている「プロジェクト」「タスク（未完了のもの）」「それぞれの進行状況」「締め切り」、および「カレンダーの確定予定（あれば）」を完全に考慮して、最も効率的かつ現実的な1日のタイムスケジュール（スケジュール表）として提案してください。
 
 【既存のプロジェクト一覧】
 ${JSON.stringify(projects, null, 2)}
 
-【既存の未完了タスク一覧】
+【既存 of 未完了タスク一覧】
 ${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
 
 【本日のカレンダー確定予定（events）】
 ※これらの予定はユーザーがカレンダーに自分で登録した「固定予定」です。必ず、指定された時間帯（time）とタイトル（title）、種別（type）をタイムスケジュールにそのまま組み込み、予定が重ならないようにしてください。
-${JSON.stringify(events.filter((e: any) => e.date === "2026-07-01"), null, 2)}
+${JSON.stringify(events.filter((e: any) => e.date === dateToUse), null, 2)}
 
 【スケジューリングのルール】
 - 始業時間は原則 09:00、終業時間は 18:00 とします。
@@ -89,7 +92,7 @@ ${JSON.stringify(events.filter((e: any) => e.date === "2026-07-01"), null, 2)}
     return res.status(200).json(parsed);
   } catch (error: any) {
     console.log("[Temote Engine] Using local schedule generator (API quota limit or connection issue)");
-    const fallbackResult = getLocalSchedule(projects, tasks, userName, events);
+    const fallbackResult = getLocalSchedule(projects, tasks, userName, events, dateToUse);
     return res.status(200).json({
       ...fallbackResult,
       isFallback: true,

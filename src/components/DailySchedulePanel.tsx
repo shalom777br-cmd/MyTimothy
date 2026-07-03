@@ -17,6 +17,7 @@ interface DailySchedulePanelProps {
   projects: Project[];
   tasks: Task[];
   events: CalendarEvent[];
+  selectedDateStr: string;
   onSelectTaskToFocus: (task: Task) => void;
 }
 
@@ -24,12 +25,19 @@ export const DailySchedulePanel: React.FC<DailySchedulePanelProps> = ({
   projects,
   tasks,
   events,
+  selectedDateStr,
   onSelectTaskToFocus,
 }) => {
   const [loading, setLoading] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleBlock[] | null>(null);
   const [advice, setAdvice] = useState<string>("");
   const [error, setError] = useState<string>("");
+
+  React.useEffect(() => {
+    setSchedule(null);
+    setAdvice("");
+    setError("");
+  }, [selectedDateStr]);
 
   const handleGenerateSchedule = async () => {
     setLoading(true);
@@ -42,6 +50,7 @@ export const DailySchedulePanel: React.FC<DailySchedulePanelProps> = ({
           projects,
           tasks,
           events,
+          targetDate: selectedDateStr,
         }),
       });
 
@@ -145,7 +154,7 @@ export const DailySchedulePanel: React.FC<DailySchedulePanelProps> = ({
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1D1D1F] hover:bg-black text-white rounded-full text-xs font-semibold shadow-xs hover:scale-[1.02] transition-transform cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>スケジュール表を提案してもらう</span>
+            <span>{selectedDateStr} のスケジュール表を提案してもらう</span>
           </button>
         </div>
       )}

@@ -19,6 +19,7 @@ interface StatusInputProps {
   }) => void;
   isGuest: boolean;
   latestFeedback?: string;
+  onDebugRawResponse?: (rawJson: any) => void;
 }
 
 export const StatusInput: React.FC<StatusInputProps> = ({
@@ -27,7 +28,8 @@ export const StatusInput: React.FC<StatusInputProps> = ({
   settings,
   onAnalysisSuccess,
   isGuest,
-  latestFeedback
+  latestFeedback,
+  onDebugRawResponse,
 }) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -62,6 +64,7 @@ export const StatusInput: React.FC<StatusInputProps> = ({
       }
 
       const data = await response.json();
+      onDebugRawResponse?.(data);
 
       if (data.newProjectProposal) {
         setProposal({

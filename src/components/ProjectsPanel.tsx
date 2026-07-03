@@ -40,14 +40,14 @@ export const ProjectsPanel: React.FC<ProjectsPanelProps> = ({
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskMinutes, setNewTaskMinutes] = useState(25);
   const [newTaskPriority, setNewTaskPriority] = useState<"high" | "medium" | "low">("medium");
-  const [newTaskAssignee, setNewTaskAssignee] = useState<"claude" | "gemini" | "chatgpt">("claude");
+  const [newTaskAssignee, setNewTaskAssignee] = useState<"claude" | "gemini" | "chatgpt">("gemini");
 
   // State for Editing Tasks
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskEditTitle, setTaskEditTitle] = useState("");
   const [taskEditMinutes, setTaskEditMinutes] = useState(25);
   const [taskEditPriority, setTaskEditPriority] = useState<"high" | "medium" | "low">("medium");
-  const [taskEditAssignee, setTaskEditAssignee] = useState<"claude" | "gemini" | "chatgpt">("claude");
+  const [taskEditAssignee, setTaskEditAssignee] = useState<"claude" | "gemini" | "chatgpt">("gemini");
 
   // State for Editing Projects
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -417,9 +417,9 @@ export const ProjectsPanel: React.FC<ProjectsPanelProps> = ({
                             onChange={(e) => setNewTaskAssignee(e.target.value as any)}
                             className="w-full text-xs text-gray-800 bg-white border border-gray-200 rounded-lg px-1.5 py-1 outline-hidden"
                           >
-                            <option value="claude">Claude</option>
-                            <option value="gemini">Gemini</option>
-                            <option value="chatgpt">ChatGPT</option>
+                            <option value="gemini">Gemini (標準)</option>
+                            <option value="claude">Claude (Gemini代理)</option>
+                            <option value="chatgpt">ChatGPT (Gemini代理)</option>
                           </select>
                         </div>
                       </div>
@@ -494,9 +494,9 @@ export const ProjectsPanel: React.FC<ProjectsPanelProps> = ({
                                     onChange={(e) => setTaskEditAssignee(e.target.value as any)}
                                     className="text-xs text-gray-800 bg-white border border-gray-200 rounded-lg px-1.5 py-1 outline-hidden cursor-pointer"
                                   >
-                                    <option value="claude">Claude</option>
-                                    <option value="gemini">Gemini</option>
-                                    <option value="chatgpt">ChatGPT</option>
+                                    <option value="gemini">Gemini (標準)</option>
+                                    <option value="claude">Claude (Gemini代理)</option>
+                                    <option value="chatgpt">ChatGPT (Gemini代理)</option>
                                   </select>
                                 </div>
 

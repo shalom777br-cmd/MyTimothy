@@ -20,6 +20,8 @@ import { Project, CalendarEvent } from "../types";
 interface CalendarPanelProps {
   projects: Project[];
   events: CalendarEvent[];
+  selectedDateStr: string;
+  onSelectDate: (dateStr: string) => void;
   onAddEvent: (event: Omit<CalendarEvent, "id">) => void;
   onDeleteEvent: (eventId: string) => void;
 }
@@ -27,6 +29,8 @@ interface CalendarPanelProps {
 export const CalendarPanel: React.FC<CalendarPanelProps> = ({
   projects,
   events,
+  selectedDateStr,
+  onSelectDate,
   onAddEvent,
   onDeleteEvent,
 }) => {
@@ -34,9 +38,7 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth()); // 0-indexed
-  const [selectedDateStr, setSelectedDateStr] = useState<string>(
-    `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
-  );
+
 
   // Form states
   const [showAddForm, setShowAddForm] = useState(false);
@@ -262,7 +264,7 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                 key={idx}
                 onClick={() => {
                   if (hasDay) {
-                    setSelectedDateStr(cell.dateStr);
+                    onSelectDate(cell.dateStr);
                   }
                 }}
                 className={`relative aspect-square flex flex-col justify-between p-1 rounded-lg border text-xs transition-all ${

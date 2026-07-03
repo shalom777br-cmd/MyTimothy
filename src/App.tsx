@@ -142,6 +142,10 @@ export default function App() {
     ];
   });
 
+  const [selectedDateStr, setSelectedDateStr] = useState<string>("2026-07-01");
+  const [debugAnalysisResult, setDebugAnalysisResult] = useState<any | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState<boolean>(false);
+
   // Temote Greetings & Suggestions
   const [temoteGreeting, setTemoteGreeting] = useState<string>(
     "おはようございます。昨日は050callのプロバイダー切り替え処理を確認しました。本日も一歩ずつ進めましょう。"
@@ -607,7 +611,7 @@ export default function App() {
         title: ct.title,
         estimated_minutes: ct.estimated_minutes,
         priority: ct.priority || "medium",
-        ai_assignee: ct.ai_assignee || "claude",
+        ai_assignee: ct.ai_assignee || "gemini",
         done: false,
       });
     });
@@ -1082,19 +1086,65 @@ export default function App() {
 
         {/* Supabase Error / SQL Schema Setup Banner */}
         {supabaseError && (
-          <div className="bg-amber-50/95 border border-amber-200 rounded-2xl p-5 mb-5 text-xs text-amber-900 animate-fade-in relative shadow-sm">
+          <div className="bg-amber-50/95 border border-amber-200 rounded-2xl p-5 mb-5 text-xs text-amber-900 animate-fade-in relative shadow-sm animate-scale-up">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-amber-100 rounded-lg text-amber-600 shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-3 flex-1">
-                <h3 className="font-bold text-sm text-amber-950">Supabaseのテーブル設定が必要です</h3>
-                <p className="text-amber-800 leading-relaxed text-xs">
-                  Supabaseの接続情報（URLとANON KEY）は設定されていますが、データを格納するためのテーブル <code>temote_user_data</code> がデータベース内に存在しない、またはポリシーが不適切です。現在データはローカルストレージに安全に保存されています。
-                </p>
-                <div className="space-y-1.5">
-                  <span className="font-bold text-[10px] text-amber-900 uppercase tracking-wider block">【解決方法】SupabaseのSQL Editorで以下のSQLを実行してください：</span>
-                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-xl overflow-x-auto text-[10px] font-mono leading-relaxed select-all">
+                {supabaseError.toLowerCase().includes("row-level security") || 
+                 supabaseError.toLowerCase().includes("row level security") || 
+                 supabaseError.toLowerCase().includes("policy") ? (
+                  <>
+                    <h3 className="font-bold text-sm text-amber-950 flex items-center gap-1.5">
+                      🔒 Row-Level Security (RLS) ポリシーエラー
+                    </h3>
+                    <p className="text-amber-800 leading-relaxed text-xs font-semibold">
+                      データベースエラー詳細: <code className="bg-amber-100/50 px-1 py-0.5 rounded font-mono text-[11px] text-amber-900">{supabaseError}</code>
+                    </p>
+                    <p className="text-amber-800 leading-relaxed text-xs">
+                      本アプリは簡略ログイン（ローカル擬似認証）を採用しているため、標準の <code>auth.email() = email</code> を利用したRLSポリシーでは権限チェックを通過できません。
+                      Supabaseダッシュボードの <strong>SQL Editor</strong> で以下のいずれかの解決コマンドを実行してください。
+                    </p>
+                    <div className="space-y-3 mt-3">
+                      <div className="p-3 bg-amber-100/40 border border-amber-200/50 rounded-xl space-y-1.5">
+                        <span className="font-bold text-[10px] text-amber-900 uppercase tracking-wider block">
+                          【推奨】① RLSポリシーを無効化する（最も確実・開発/検証用）
+                        </span>
+                        <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto text-[10px] font-mono leading-relaxed select-all">
+{`alter table temote_user_data disable row level security;`}
+                        </pre>
+                      </div>
+                      
+                      <div className="p-3 bg-amber-100/40 border border-amber-200/50 rounded-xl space-y-1.5">
+                        <span className="font-bold text-[10px] text-amber-900 uppercase tracking-wider block">
+                          ② 既存ポリシーをリセットし、パブリック全ユーザーアクセスを許可する（RLSを有効のままにする場合）
+                        </span>
+                        <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-x-auto text-[10px] font-mono leading-relaxed select-all">
+{`drop policy if exists "Users can select their own row" on temote_user_data;
+drop policy if exists "Users can insert their own row" on temote_user_data;
+drop policy if exists "Users can update their own row" on temote_user_data;
+
+create policy "Allow read/write access for all users"
+  on temote_user_data for all
+  using (true)
+  with check (true);`}
+                        </pre>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-bold text-sm text-amber-950">Supabaseのテーブル設定が必要です</h3>
+                    <p className="text-amber-800 leading-relaxed text-xs font-semibold">
+                      接続エラー詳細: <code className="bg-amber-100/50 px-1 py-0.5 rounded font-mono text-[11px] text-amber-900">{supabaseError}</code>
+                    </p>
+                    <p className="text-amber-800 leading-relaxed text-xs">
+                      Supabaseの接続情報は設定されていますが、データを格納するためのテーブル <code>temote_user_data</code> がデータベース内に存在しない、またはポリシーが不適切です。現在データはローカルストレージに安全に保存されています。
+                    </p>
+                    <div className="space-y-1.5">
+                      <span className="font-bold text-[10px] text-amber-900 uppercase tracking-wider block">【解決方法】SupabaseのSQL Editorで以下のSQLを実行してください：</span>
+                      <pre className="bg-gray-900 text-gray-100 p-4 rounded-xl overflow-x-auto text-[10px] font-mono leading-relaxed select-all">
 {`create table if not exists temote_user_data (
   email text primary key,
   projects jsonb default '[]'::jsonb,
@@ -1105,23 +1155,12 @@ export default function App() {
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- RLS（Row Level Security）を有効にして、ログイン中ユーザーが自身のemailデータのみアクセス可能にする
-alter table temote_user_data enable row level security;
-
-create policy "Users can select their own row"
-  on temote_user_data for select
-  using (auth.email() = email);
-
-create policy "Users can insert their own row"
-  on temote_user_data for insert
-  with check (auth.email() = email);
-
-create policy "Users can update their own row"
-  on temote_user_data for update
-  using (auth.email() = email)
-  with check (auth.email() = email);`}
-                  </pre>
-                </div>
+-- RLSを無効化して、アプリ内でのデータ保存と復元を容易にします
+alter table temote_user_data disable row level security;`}
+                      </pre>
+                    </div>
+                  </>
+                )}
               </div>
               <button 
                 onClick={() => setSupabaseError(null)} 
@@ -1192,6 +1231,8 @@ create policy "Users can update their own row"
             <CalendarPanel
               projects={projects}
               events={events}
+              selectedDateStr={selectedDateStr}
+              onSelectDate={setSelectedDateStr}
               onAddEvent={handleCalendarAddEvent}
               onDeleteEvent={handleCalendarDeleteEvent}
             />
@@ -1201,6 +1242,7 @@ create policy "Users can update their own row"
               projects={projects}
               tasks={tasks}
               events={events}
+              selectedDateStr={selectedDateStr}
               onSelectTaskToFocus={(task) => {
                 setRecommendedTask(task);
                 setRecommendationReason("スケジュールから選択された今日の集中タスクです。");
@@ -1219,6 +1261,7 @@ create policy "Users can update their own row"
               onAnalysisSuccess={handleAnalysisSuccess}
               isGuest={!isLoggedIn}
               latestFeedback={temoteGreeting}
+              onDebugRawResponse={setDebugAnalysisResult}
             />
 
             {/* List of Held Jobs / Active Projects & Tasks */}
@@ -1283,6 +1326,101 @@ create policy "Users can update their own row"
         onClose={() => setShowAuthModal(false)}
         onLoginSuccess={handleLogin}
       />
+
+      {/* 🔍 AI解析デバッグパネル */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 mt-6">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden transition-all hover:shadow-sm duration-300">
+          <button
+            onClick={() => setShowDebugPanel(!showDebugPanel)}
+            className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600">
+                <Info className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-xs font-bold text-gray-700 tracking-wider font-display uppercase">
+                🔍 AI解析デバッグログ (開発・調査用)
+              </span>
+              {debugAnalysisResult ? (
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold tracking-wide">
+                  最新データあり
+                </span>
+              ) : (
+                <span className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold tracking-wide">
+                  データなし
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-mono text-gray-400 font-semibold">
+              {showDebugPanel ? "▲ デバッグパネルを閉じる" : "▼ デバッグパネルを開く"}
+            </span>
+          </button>
+          
+          {showDebugPanel && (
+            <div className="p-5 border-t border-gray-100 bg-[#171719] text-gray-200">
+              <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2.5">
+                <span className="text-xs text-indigo-300 font-medium">
+                  直前の /api/temote/analyze レスポンス JSON
+                </span>
+                {debugAnalysisResult && (
+                  <button
+                    onClick={() => setDebugAnalysisResult(null)}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 underline font-mono transition-colors cursor-pointer"
+                  >
+                    ログをクリア
+                  </button>
+                )}
+              </div>
+              
+              {debugAnalysisResult ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 bg-white/5 rounded-xl border border-white/5 flex flex-col">
+                      <span className="block text-[9px] font-bold text-indigo-300 uppercase tracking-wider mb-2 font-display">
+                        1. 進捗更新 (updatedProjects)
+                      </span>
+                      <pre className="text-[11px] font-mono text-amber-300 overflow-x-auto bg-black/40 p-2 rounded-lg flex-1 min-h-[80px]">
+                        {JSON.stringify(debugAnalysisResult.updatedProjects, null, 2)}
+                      </pre>
+                    </div>
+                    
+                    <div className="p-3 bg-white/5 rounded-xl border border-white/5 flex flex-col">
+                      <span className="block text-[9px] font-bold text-emerald-300 uppercase tracking-wider mb-2 font-display">
+                        2. 新規タスク (createdTasks)
+                      </span>
+                      <pre className="text-[11px] font-mono text-emerald-400 overflow-x-auto bg-black/40 p-2 rounded-lg flex-1 min-h-[80px]">
+                        {JSON.stringify(debugAnalysisResult.createdTasks, null, 2)}
+                      </pre>
+                    </div>
+                    
+                    <div className="p-3 bg-white/5 rounded-xl border border-white/5 flex flex-col">
+                      <span className="block text-[9px] font-bold text-rose-300 uppercase tracking-wider mb-2 font-display">
+                        3. 完了タスクID一覧 (completedTaskIds)
+                      </span>
+                      <pre className="text-[11px] font-mono text-rose-300 overflow-x-auto bg-black/40 p-2 rounded-lg flex-1 min-h-[80px]">
+                        {JSON.stringify(debugAnalysisResult.completedTaskIds, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                    <span className="block text-[9px] font-bold text-cyan-300 uppercase tracking-wider mb-2 font-display">
+                      4. レスポンス生データ全体 (Raw Payload)
+                    </span>
+                    <pre className="text-[11px] font-mono text-gray-300 overflow-x-auto max-h-72 overflow-y-auto bg-black/40 p-3 rounded-lg border border-white/5">
+                      {JSON.stringify(debugAnalysisResult, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic py-2">
+                  解析ログはまだありません。右側の入力欄から「プログラミングを完了した」や「日記を書いた」等の進捗報告を行うと、AIの思考結果と判定内容がここにリアルタイムで表示されます。
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
       
     </div>
   );

@@ -43,9 +43,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const aiModelsList = [
     "Gemini 3.5 Flash",
-    "Gemini 3.1 Pro (Paid)",
-    "Claude 3.5 Sonnet",
-    "GPT-4o"
+    "Gemini 3.1 Pro (Paid)"
   ];
 
   return (

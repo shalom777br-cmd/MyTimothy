@@ -6,13 +6,16 @@ dotenv.config();
 
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
 export let supabase: any = null;
 
-if (supabaseUrl && supabaseAnonKey) {
+const supabaseKey = supabaseServiceRoleKey || supabaseAnonKey;
+
+if (supabaseUrl && supabaseKey) {
   try {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
-    console.log("Supabase Client initialized successfully.");
+    supabase = createClient(supabaseUrl, supabaseKey);
+    console.log(`Supabase Client initialized successfully with ${supabaseServiceRoleKey ? "Service Role Key" : "Anon Key"}.`);
   } catch (error) {
     console.error("Failed to initialize Supabase Client:", error);
   }
@@ -155,7 +158,7 @@ export function getLocalSuggestion(projects: any[], tasks: any[]) {
         title: activeProj.type === "code" ? "技術スタックと主要エンドポイントの整理" : "全体の章構成の組み立て",
         estimated_minutes: 25,
         priority: "medium",
-        ai_assignee: activeProj.type === "code" ? "claude" : "chatgpt",
+        ai_assignee: "gemini",
         done: false,
       },
       reason: `プロジェクト『${activeProj.name}』の次のステップとして最適です。`
@@ -169,7 +172,7 @@ export function toTimeStr(mins: number) {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
 
-export function getLocalSchedule(projects: any[], tasks: any[], userName: string, events: any[] = []) {
+export function getLocalSchedule(projects: any[], tasks: any[], userName: string, events: any[] = [], targetDate: string = "2026-07-01") {
   const safeProjects = Array.isArray(projects) ? projects : [];
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   const activeTasks = safeTasks.filter((t: any) => t && !t.done);
@@ -197,7 +200,7 @@ export function getLocalSchedule(projects: any[], tasks: any[], userName: string
   let blockCounter = 0;
 
   const todayEvents = (events || [])
-    .filter((e: any) => e && e.date === "2026-07-01")
+    .filter((e: any) => e && e.date === targetDate)
     .sort((a: any, b: any) => {
       const timeA = a.time || "00:00";
       const timeB = b.time || "00:00";

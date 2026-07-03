@@ -47,7 +47,7 @@ export const initialTasks: Task[] = [
     estimated_minutes: 25,
     priority: "high",
     deadline: "2026-07-10",
-    ai_assignee: "claude",
+    ai_assignee: "gemini",
     done: false,
   },
   {
@@ -57,7 +57,7 @@ export const initialTasks: Task[] = [
     estimated_minutes: 35,
     priority: "medium",
     deadline: "2026-07-12",
-    ai_assignee: "claude",
+    ai_assignee: "gemini",
     done: true,
   },
   {
@@ -67,7 +67,7 @@ export const initialTasks: Task[] = [
     estimated_minutes: 45,
     priority: "high",
     deadline: "2026-07-20",
-    ai_assignee: "claude",
+    ai_assignee: "gemini",
     done: false,
   },
   {
@@ -77,7 +77,7 @@ export const initialTasks: Task[] = [
     estimated_minutes: 30,
     priority: "medium",
     deadline: "2026-07-25",
-    ai_assignee: "claude",
+    ai_assignee: "gemini",
     done: false,
   },
   {
@@ -87,7 +87,7 @@ export const initialTasks: Task[] = [
     estimated_minutes: 40,
     priority: "medium",
     deadline: "2026-08-01",
-    ai_assignee: "chatgpt",
+    ai_assignee: "gemini",
     done: false,
   },
   {
@@ -97,7 +97,7 @@ export const initialTasks: Task[] = [
     estimated_minutes: 50,
     priority: "low",
     deadline: "2026-08-05",
-    ai_assignee: "chatgpt",
+    ai_assignee: "gemini",
     done: true,
   },
   {
@@ -107,7 +107,7 @@ export const initialTasks: Task[] = [
     estimated_minutes: 15,
     priority: "high",
     deadline: "2026-07-05",
-    ai_assignee: "chatgpt",
+    ai_assignee: "gemini",
     done: false,
   }
 ];
