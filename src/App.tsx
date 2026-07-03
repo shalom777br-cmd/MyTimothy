@@ -12,6 +12,18 @@ import { CalendarPanel } from "./components/CalendarPanel";
 import { HeldJobsList } from "./components/HeldJobsList";
 import { GithubSettings } from "./components/GithubSettings";
 
+// Helper function to get today's date formatted as YYYY-MM-DD
+function getTodayStr(offsetDays = 0) {
+  const d = new Date();
+  if (offsetDays !== 0) {
+    d.setDate(d.getDate() + offsetDays);
+  }
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function App() {
   // Session Authentication State (Synchronous initialization to prevent race conditions on reload)
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -112,7 +124,7 @@ export default function App() {
       {
         id: "evt-initial-1",
         title: "A社キックオフ・要件定義ミーティング",
-        date: "2026-07-01",
+        date: getTodayStr(0),
         time: "10:00",
         duration_minutes: 60,
         project_id: "proj-050call",
@@ -122,7 +134,7 @@ export default function App() {
       {
         id: "evt-initial-2",
         title: "渋谷オフィス訪問 & 打合せ",
-        date: "2026-07-01",
+        date: getTodayStr(0),
         time: "14:00",
         duration_minutes: 90,
         project_id: "proj-concertante",
@@ -132,7 +144,7 @@ export default function App() {
       {
         id: "evt-initial-3",
         title: "ブラジル日記 第3章 執筆完了目標",
-        date: "2026-07-05",
+        date: getTodayStr(2),
         time: "15:00",
         duration_minutes: 60,
         project_id: "proj-brazil-diary",
@@ -142,7 +154,7 @@ export default function App() {
     ];
   });
 
-  const [selectedDateStr, setSelectedDateStr] = useState<string>("2026-07-01");
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => getTodayStr(0));
   const [debugAnalysisResult, setDebugAnalysisResult] = useState<any | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState<boolean>(false);
 
@@ -504,7 +516,7 @@ export default function App() {
         {
           id: "evt-initial-1",
           title: "A社キックオフ・要件定義ミーティング",
-          date: "2026-07-01",
+          date: getTodayStr(0),
           time: "10:00",
           duration_minutes: 60,
           project_id: "proj-050call",
@@ -514,7 +526,7 @@ export default function App() {
         {
           id: "evt-initial-2",
           title: "渋谷オフィス訪問 & 打合せ",
-          date: "2026-07-01",
+          date: getTodayStr(0),
           time: "14:00",
           duration_minutes: 90,
           project_id: "proj-concertante",
@@ -524,7 +536,7 @@ export default function App() {
         {
           id: "evt-initial-3",
           title: "ブラジル日記 第3章 執筆完了目標",
-          date: "2026-07-05",
+          date: getTodayStr(2),
           time: "15:00",
           duration_minutes: 60,
           project_id: "proj-brazil-diary",
