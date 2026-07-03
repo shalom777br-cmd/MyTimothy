@@ -20,6 +20,8 @@ export interface Task {
   deadline?: string;
   ai_assignee: "claude" | "gemini" | "chatgpt";
   done: boolean;
+  status?: "todo" | "in_progress" | "done";
+  started_at?: string;
 }
 
 export interface HistoryItem {

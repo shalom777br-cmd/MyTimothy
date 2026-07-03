@@ -1,4 +1,5 @@
 import { ai, Type, getLocalAnalysis, setCorsHeaders } from "../_shared.js";
+import { chooseAI, getProvider } from "./chooseAI.js";
 
 export default async function handler(req: any, res: any) {
   if (setCorsHeaders(req, res)) return;
@@ -16,13 +17,78 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: "Input is empty" });
   }
 
-  // Fallback local logic if Gemini is not available
-  if (!ai) {
+  // AI Selection using Router
+  const aiSelection = chooseAI(userInput);
+  console.log(`[AI Router] Input: "${userInput}" -> Selected: ${aiSelection.provider} (Reason: ${aiSelection.reason})`);
+
+  // Fallback local logic if Gemini is selected but Gemini client is not initialized
+  if (aiSelection.provider === "gemini" && !ai) {
     const fallbackResult = getLocalAnalysis(userInput, projects, tasks, userName);
-    return res.status(200).json(fallbackResult);
+    return res.status(200).json({
+      ...fallbackResult,
+      aiProvider: {
+        id: "local",
+        name: "Local Rules",
+        reason: "オフラインローカル判定（Geminiクライアント未初期化）"
+      }
+    });
   }
 
-  // Gemini API analysis
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      responseText: {
+        type: Type.STRING,
+        description: "ユーザーへの1〜2言のシンプルで丁寧な秘書の返答（日本語）。"
+      },
+      newProjectProposal: {
+        type: Type.OBJECT,
+        nullable: true,
+        description: "新規プロジェクトの提案（該当がなければnull）",
+        properties: {
+          name: { type: Type.STRING, description: "プロジェクト名" },
+          type: { type: Type.STRING, enum: ["code", "writing"], description: "プロジェクトの種別" }
+        },
+        required: ["name", "type"]
+      },
+      updatedProjects: {
+        type: Type.ARRAY,
+        description: "進捗があった既存プロジェクト",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING },
+            progress_percent: { type: Type.INTEGER, description: "新しい進捗率（0-100）" },
+            last_worked_at: { type: Type.STRING, description: "現在時刻のISO文字列" }
+          },
+          required: ["id", "progress_percent", "last_worked_at"]
+        }
+      },
+      createdTasks: {
+        type: Type.ARRAY,
+        description: "新しく作成するタスク",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            project_id: { type: Type.STRING, description: "紐づくプロジェクトID。新規プロジェクトの場合は空文字にしてください。" },
+            title: { type: Type.STRING, description: "タスクの具体的なタイトル" },
+            estimated_minutes: { type: Type.INTEGER, description: "予想所要時間（分）" },
+            priority: { type: Type.STRING, enum: ["high", "medium", "low"], description: "優先度" },
+            ai_assignee: { type: Type.STRING, enum: ["claude", "gemini", "chatgpt"], description: "タスク種別に基づく担当AI（コード/実装はclaude、文章/記録はclaudeかchatgpt、画像/デザインはgemini、意思決定はgemini）" }
+          },
+          required: ["project_id", "title", "estimated_minutes", "priority", "ai_assignee"]
+        }
+      },
+      completedTaskIds: {
+        type: Type.ARRAY,
+        description: "完了した既存タスク of ID一覧",
+        items: { type: Type.STRING }
+      }
+    },
+    required: ["responseText", "newProjectProposal", "updatedProjects", "createdTasks", "completedTaskIds"]
+  };
+
+  // Execute using selected provider
   try {
     const systemPrompt = `あなたは優秀で控えめなAI秘書「テモテ」です。
 ユーザー名: ${userName}
@@ -49,82 +115,29 @@ ${JSON.stringify(tasks.filter((t: any) => !t.done), null, 2)}
 【出力JSONの形式】
 指定された responseSchema に従って、余計なマークダウン文字や解説を一切含めず、純粋なJSONのみを返してください。`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: [
-        {
-          text: `ユーザー報告: "${userInput}"`
-        }
-      ],
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            responseText: {
-              type: Type.STRING,
-              description: "ユーザーへの1〜2言のシンプルで丁寧な秘書の返答（日本語）。"
-            },
-            newProjectProposal: {
-              type: Type.OBJECT,
-              nullable: true,
-              description: "新規プロジェクトの提案（該当がなければnull）",
-              properties: {
-                name: { type: Type.STRING, description: "プロジェクト名" },
-                type: { type: Type.STRING, enum: ["code", "writing"], description: "プロジェクトの種別" }
-              },
-              required: ["name", "type"]
-            },
-            updatedProjects: {
-              type: Type.ARRAY,
-              description: "進捗があった既存プロジェクト",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  progress_percent: { type: Type.INTEGER, description: "新しい進捗率（0-100）" },
-                  last_worked_at: { type: Type.STRING, description: "現在時刻のISO文字列" }
-                },
-                required: ["id", "progress_percent", "last_worked_at"]
-              }
-            },
-            createdTasks: {
-              type: Type.ARRAY,
-              description: "新しく作成するタスク",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  project_id: { type: Type.STRING, description: "紐づくプロジェクトID。新規プロジェクトの場合は空文字にしてください。" },
-                  title: { type: Type.STRING, description: "タスクの具体的なタイトル" },
-                  estimated_minutes: { type: Type.INTEGER, description: "予想所要時間（分）" },
-                  priority: { type: Type.STRING, enum: ["high", "medium", "low"], description: "優先度" },
-                  ai_assignee: { type: Type.STRING, enum: ["claude", "gemini", "chatgpt"], description: "タスク種別に基づく担当AI（コード/実装はclaude、文章/記録はclaudeかchatgpt、画像/デザインはgemini、意思決定はgemini）" }
-                },
-                required: ["project_id", "title", "estimated_minutes", "priority", "ai_assignee"]
-              }
-            },
-            completedTaskIds: {
-              type: Type.ARRAY,
-              description: "完了した既存タスク of ID一覧",
-              items: { type: Type.STRING }
-            }
-          },
-          required: ["responseText", "newProjectProposal", "updatedProjects", "createdTasks", "completedTaskIds"]
-        }
+    const provider = getProvider(aiSelection.provider);
+    const parsed = await provider.generateJSON(systemPrompt, userInput, responseSchema);
+
+    return res.status(200).json({
+      ...parsed,
+      aiProvider: {
+        id: provider.id,
+        name: provider.name,
+        reason: aiSelection.reason
       }
     });
-
-    const resultText = response.text || "{}";
-    const parsed = JSON.parse(resultText);
-    return res.status(200).json(parsed);
   } catch (error: any) {
-    console.log("[Temote Engine] Using local analysis (API quota limit or connection issue)");
+    console.warn(`[AI Router Error] Routing to ${aiSelection.provider} failed. Falling back to local offline analysis. Error:`, error);
     const fallbackResult = getLocalAnalysis(userInput, projects, tasks, userName);
     return res.status(200).json({
       ...fallbackResult,
       isFallback: true,
-      apiError: "API quota limit or connection issue. Offline fallback activated."
+      apiError: error?.message || String(error),
+      aiProvider: {
+        id: "local-fallback",
+        name: "Local Fallback",
+        reason: "各AIプロバイダーの処理エラーに伴うローカルフォールバック実行"
+      }
     });
   }
 }

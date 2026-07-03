@@ -190,42 +190,11 @@ export default function App() {
     const userSett = localStorage.getItem(`${keyPrefix}_settings`);
     const userEvents = localStorage.getItem(`${keyPrefix}_events`);
 
-    let activeProj = initialProjects;
-    let activeTasks = initialTasks;
-    let activeHist = initialHistory;
-    let activeSett = initialSettings;
-    let activeEvents: CalendarEvent[] = [
-      {
-        id: "evt-initial-1",
-        title: "A社キックオフ・要件定義ミーティング",
-        date: "2026-07-01",
-        time: "10:00",
-        duration_minutes: 60,
-        project_id: "proj-050call",
-        type: "meeting",
-        description: "新規コールシステムの要件についての初顔合わせMTG"
-      },
-      {
-        id: "evt-initial-2",
-        title: "渋谷オフィス訪問 & 打合せ",
-        date: "2026-07-01",
-        time: "14:00",
-        duration_minutes: 90,
-        project_id: "proj-concertante",
-        type: "transit",
-        description: "渋谷オフィスにて実装方針の擦り合わせ。移動時間を伴います。"
-      },
-      {
-        id: "evt-initial-3",
-        title: "ブラジル日記 第3章 執筆完了目標",
-        date: "2026-07-05",
-        time: "15:00",
-        duration_minutes: 60,
-        project_id: "proj-brazil-diary",
-        type: "work",
-        description: "静的サイト化の移行にむけた、第3章の編集作業。"
-      }
-    ];
+    let activeProj = projects;
+    let activeTasks = tasks;
+    let activeHist = history;
+    let activeSett = settings;
+    let activeEvents = events;
 
     if (userProj && userTasks && userHist && userSett) {
       activeProj = JSON.parse(userProj);
@@ -245,14 +214,21 @@ export default function App() {
 
     // Sync with Supabase asynchronously
     try {
+      console.log(`[Supabase Sync] Fetching user data for ${email}...`);
       const response = await fetch(`/api/temote/data?email=${encodeURIComponent(email)}`);
       if (response.ok) {
         const result = await response.json();
         if (result.error) {
           setSupabaseError(result.error);
+          console.error("[Supabase Sync Error] API returned error on fetch:", result.error, result);
+        } else if (result.success === false) {
+          setSupabaseError(result.reason || "Fetch failed on server");
+          console.error("[Supabase Sync Failure] Fetch success is false:", result.reason || result, result);
         } else {
           setSupabaseError(null);
+          console.log("[Supabase Sync] Successfully connected to database wrapper.");
         }
+
         if (result.source === "supabase" && result.data) {
           const sData = result.data;
           const parsedProj = sData.projects || activeProj;
@@ -272,13 +248,22 @@ export default function App() {
           localStorage.setItem(`${keyPrefix}_history`, JSON.stringify(parsedHist));
           localStorage.setItem(`${keyPrefix}_settings`, JSON.stringify(parsedSett));
           localStorage.setItem(`${keyPrefix}_events`, JSON.stringify(parsedEvents));
+          console.log("[Supabase Sync] Populated local state with remote database records.");
         } else if (result.source === "supabase" && !result.data) {
           // No record on Supabase yet, populate it with current active data
+          console.log("[Supabase Sync] No remote record found. Initializing remote store with current local active data...");
           await saveUserData(email, activeProj, activeTasks, activeHist, activeSett, activeEvents);
         }
+      } else {
+        const errorText = await response.text();
+        const errMsg = `HTTP Error ${response.status}: ${errorText}`;
+        setSupabaseError(errMsg);
+        console.error("[Supabase Sync HTTP Error] Failed to fetch data:", errMsg);
       }
-    } catch (e) {
-      console.warn("Could not sync with Supabase.", e);
+    } catch (e: any) {
+      const errMsg = e?.message || String(e);
+      setSupabaseError(errMsg);
+      console.error("[Supabase Sync Exception] Failed during data fetching:", errMsg, e);
     }
   };
 
@@ -299,6 +284,7 @@ export default function App() {
     localStorage.setItem(`${keyPrefix}_events`, JSON.stringify(evts));
 
     try {
+      console.log(`[Supabase Save] Attempting to upsert data for ${email}...`);
       const response = await fetch("/api/temote/data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -311,16 +297,29 @@ export default function App() {
           events: evts,
         }),
       });
+
       if (response.ok) {
         const result = await response.json();
         if (result.error) {
           setSupabaseError(result.error);
+          console.error("[Supabase Save Error] Server returned API error on upsert:", result.error, result);
+        } else if (result.success === false) {
+          setSupabaseError(result.reason || result.error || "Save failed on server");
+          console.error("[Supabase Save Failure] Server marked success as false:", result.reason || result, result);
         } else {
           setSupabaseError(null);
+          console.log("[Supabase Save] Successfully saved data to Supabase remote database.", result);
         }
+      } else {
+        const errorText = await response.text();
+        const errMsg = `HTTP Error ${response.status}: ${errorText}`;
+        setSupabaseError(errMsg);
+        console.error("[Supabase Save HTTP Error] Failed to post data:", errMsg);
       }
-    } catch (e) {
-      console.warn("Could not save to Supabase.", e);
+    } catch (e: any) {
+      const errMsg = e?.message || String(e);
+      setSupabaseError(errMsg);
+      console.error("[Supabase Save Exception] Failed during data post request:", errMsg, e);
     }
   };
 
@@ -542,6 +541,7 @@ export default function App() {
     completedTaskIds: string[];
     isFallback?: boolean;
     apiError?: string;
+    aiProvider?: { id: string; name: string; reason: string };
   }) => {
     if (result.isFallback) {
       setGeminiFallbackActive(true);
@@ -620,10 +620,17 @@ export default function App() {
     });
 
     impactedProjectIds.forEach((pId) => {
+      // If this project was already explicitly updated in updatedProjects, DO NOT override it!
+      const isExplicitlyUpdated = result.updatedProjects.some((up) => up.id === pId);
+      if (isExplicitlyUpdated) return;
+
       const projTasks = nextTasks.filter((t) => t.project_id === pId);
       const doneProjTasks = projTasks.filter((t) => t.done);
       if (projTasks.length > 0) {
-        const nextPercent = Math.round((doneProjTasks.length / projTasks.length) * 100);
+        let nextPercent = Math.round((doneProjTasks.length / projTasks.length) * 100);
+        if (nextPercent === 100 && projTasks.length === 1) {
+          nextPercent = 50; // Don't automatically set 100% if only 1 task is completed
+        }
         nextProjects = nextProjects.map((p) => {
           if (p.id === pId) {
             return { ...p, progress_percent: nextPercent };
@@ -680,7 +687,10 @@ export default function App() {
     const projTasks = nextTasks.filter((t) => t.project_id === targetTask.project_id);
     const doneTasks = projTasks.filter((t) => t.done);
     if (projTasks.length > 0) {
-      const nextPercent = Math.round((doneTasks.length / projTasks.length) * 100);
+      let nextPercent = Math.round((doneTasks.length / projTasks.length) * 100);
+      if (nextPercent === 100 && projTasks.length === 1) {
+        nextPercent = 50; // Don't automatically set 100% if only 1 task is completed
+      }
       nextProjects = nextProjects.map((p) => {
         if (p.id === targetTask.project_id) {
           return {
@@ -705,6 +715,66 @@ export default function App() {
     fetchAISuggestion(nextProjects, nextTasks);
   };
 
+  const handleStartTask = (taskId: string) => {
+    const nextTasks = tasks.map((t) => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          status: "in_progress" as const,
+          started_at: new Date().toISOString(),
+        };
+      }
+      // Revert any other task that was in progress to todo
+      if (t.status === "in_progress") {
+        return {
+          ...t,
+          status: "todo" as const,
+        };
+      }
+      return t;
+    });
+
+    setTasks(nextTasks);
+    if (isLoggedIn) {
+      saveUserData(userEmail, projects, nextTasks, history, settings, events);
+    }
+  };
+
+  const handleCancelTask = (taskId: string) => {
+    const nextTasks = tasks.map((t) => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          status: "todo" as const,
+          started_at: undefined,
+        };
+      }
+      return t;
+    });
+
+    setTasks(nextTasks);
+    if (isLoggedIn) {
+      saveUserData(userEmail, projects, nextTasks, history, settings, events);
+    }
+  };
+
+  const handleExtendTask = (taskId: string) => {
+    const nextTasks = tasks.map((t) => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          started_at: new Date().toISOString(),
+        };
+      }
+      return t;
+    });
+
+    setTasks(nextTasks);
+    if (isLoggedIn) {
+      saveUserData(userEmail, projects, nextTasks, history, settings, events);
+    }
+  };
+
   // Complete task from the Deep Focus stopwatch timer
   const handleCompleteTaskFromTimer = (taskId: string, timeSpentMinutes: number) => {
     // Check if suggested task is completely new or existing
@@ -718,7 +788,7 @@ export default function App() {
     if (isExisting) {
       nextTasks = nextTasks.map((t) => {
         if (t.id === taskId) {
-          return { ...t, done: true };
+          return { ...t, done: true, status: "done" as const };
         }
         return t;
       });
@@ -728,6 +798,7 @@ export default function App() {
       targetTask = {
         ...recommendedTask,
         done: true,
+        status: "done" as const,
       };
       nextTasks.push(targetTask);
     } else {
@@ -738,7 +809,10 @@ export default function App() {
     const projTasks = nextTasks.filter((t) => t.project_id === targetTask.project_id);
     const doneTasks = projTasks.filter((t) => t.done);
     if (projTasks.length > 0) {
-      const nextPercent = Math.round((doneTasks.length / projTasks.length) * 100);
+      let nextPercent = Math.round((doneTasks.length / projTasks.length) * 100);
+      if (nextPercent === 100 && projTasks.length === 1) {
+        nextPercent = 50; // Don't automatically set 100% if only 1 task is completed
+      }
       nextProjects = nextProjects.map((p) => {
         if (p.id === targetTask.project_id) {
           return {
@@ -852,13 +926,16 @@ export default function App() {
     });
 
     const targetTask = tasks.find((t) => t.id === taskId);
+    let nextProjects = [...projects];
     if (targetTask) {
-      let nextProjects = [...projects];
       const pId = updatedFields.project_id || targetTask.project_id;
       const projTasks = nextTasks.filter((t) => t.project_id === pId);
       const doneTasks = projTasks.filter((t) => t.done);
       if (projTasks.length > 0) {
-        const nextPercent = Math.round((doneTasks.length / projTasks.length) * 100);
+        let nextPercent = Math.round((doneTasks.length / projTasks.length) * 100);
+        if (nextPercent === 100 && projTasks.length === 1) {
+          nextPercent = 50; // Don't automatically set 100% if only 1 task is completed
+        }
         nextProjects = nextProjects.map((p) => {
           if (p.id === pId) {
             return {
@@ -870,16 +947,13 @@ export default function App() {
         });
       }
       setProjects(nextProjects);
-      if (isLoggedIn) {
-        saveUserData(userEmail, nextProjects, nextTasks, history, settings, events);
-      }
     }
 
     setTasks(nextTasks);
     if (isLoggedIn) {
-      saveUserData(userEmail, projects, nextTasks, history, settings, events);
+      saveUserData(userEmail, nextProjects, nextTasks, history, settings, events);
     }
-    fetchAISuggestion(projects, nextTasks);
+    fetchAISuggestion(nextProjects, nextTasks);
   };
 
   // Delete Project
@@ -1108,6 +1182,10 @@ create policy "Users can update their own row"
               onGetAlternativeSuggestion={handleGetAlternativeSuggestion}
               loadingSuggestion={loadingSuggestion}
               projects={projects}
+              tasks={tasks}
+              onStartTask={handleStartTask}
+              onCancelTask={handleCancelTask}
+              onExtendTask={handleExtendTask}
             />
 
             {/* Calendar & Fixed Appointments Panel */}

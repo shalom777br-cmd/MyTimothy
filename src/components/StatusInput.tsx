@@ -15,6 +15,7 @@ interface StatusInputProps {
     completedTaskIds: string[];
     isFallback?: boolean;
     apiError?: string;
+    aiProvider?: { id: string; name: string; reason: string };
   }) => void;
   isGuest: boolean;
   latestFeedback?: string;
@@ -33,6 +34,7 @@ export const StatusInput: React.FC<StatusInputProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<{ name: string; type: "code" | "writing" } | null>(null);
   const [proposedResponse, setProposedResponse] = useState<any>(null);
+  const [lastRouting, setLastRouting] = useState<{ id: string; name: string; reason: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +43,7 @@ export const StatusInput: React.FC<StatusInputProps> = ({
     setLoading(true);
     setError(null);
     setProposal(null);
+    setLastRouting(null);
 
     try {
       const response = await fetch("/api/temote/analyze", {
@@ -66,6 +69,7 @@ export const StatusInput: React.FC<StatusInputProps> = ({
           type: data.newProjectProposal.type || "code"
         });
         setProposedResponse(data);
+        setLastRouting(data.aiProvider || null);
       } else {
         onAnalysisSuccess({
           responseText: data.responseText,
@@ -74,8 +78,10 @@ export const StatusInput: React.FC<StatusInputProps> = ({
           createdTasks: data.createdTasks || [],
           completedTaskIds: data.completedTaskIds || [],
           isFallback: data.isFallback,
-          apiError: data.apiError
+          apiError: data.apiError,
+          aiProvider: data.aiProvider
         });
+        setLastRouting(data.aiProvider || null);
         setInput("");
       }
     } catch (err: any) {
@@ -161,10 +167,23 @@ export const StatusInput: React.FC<StatusInputProps> = ({
         <div className="bg-gray-50/85 border border-gray-100 rounded-xl p-2.5 mb-2.5 flex items-start gap-2 animate-fade-in">
           <CuteTemoteLogo size={18} className="shrink-0 mt-0.5" />
           <div className="space-y-0.5 flex-1">
-            <h4 className="text-[8px] font-bold text-gray-400 uppercase tracking-wider font-display">AI解析フィードバック</h4>
+            <h4 className="text-[8px] font-bold text-gray-400 uppercase tracking-wider font-display flex items-center justify-between">
+              <span>AI解析フィードバック</span>
+              {lastRouting && (
+                <span className="text-[8.5px] bg-indigo-50/80 text-indigo-600 border border-indigo-100/60 px-2 py-0.5 rounded font-mono font-bold tracking-wide">
+                  ROUTE: {lastRouting.name.toUpperCase()}
+                </span>
+              )}
+            </h4>
             <p className="text-[10.5px] text-gray-600 leading-relaxed font-light">
               {latestFeedback}
             </p>
+            {lastRouting && (
+              <div className="text-[9.5px] text-indigo-500 bg-indigo-50/30 border border-indigo-100/30 rounded-lg p-1.5 mt-1.5 leading-relaxed font-light">
+                <span className="font-semibold block text-[8px] uppercase tracking-wider text-indigo-400 mb-0.5">※AIルーター選定理由</span>
+                {lastRouting.reason}
+              </div>
+            )}
           </div>
         </div>
       )}

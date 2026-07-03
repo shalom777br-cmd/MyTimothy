@@ -9,7 +9,8 @@ import {
   GitCommit, 
   Star, 
   Loader2, 
-  AlertTriangle 
+  AlertTriangle,
+  Check
 } from "lucide-react";
 import { Project, Task } from "../types";
 
@@ -217,17 +218,33 @@ export const HeldJobsList: React.FC<HeldJobsListProps> = ({
                       
                       {/* GitHub Icon Indicator / Linker */}
                       {onUpdateProject && (
-                        <button
-                          onClick={() => handleStartEdit(project.id, project.github_repo)}
-                          className={`p-1 rounded-md transition-colors ${
-                            project.github_repo 
-                              ? "text-[#24292F] hover:bg-gray-100" 
-                              : "text-gray-300 hover:text-gray-600 hover:bg-gray-50"
-                          }`}
-                          title={project.github_repo ? "GitHub連携を編集" : "GitHubリポジトリを連携"}
-                        >
-                          <Github className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleStartEdit(project.id, project.github_repo)}
+                            className={`p-1 rounded-md transition-colors ${
+                              project.github_repo 
+                                ? "text-[#24292F] hover:bg-gray-100" 
+                                : "text-gray-300 hover:text-gray-600 hover:bg-gray-50"
+                            }`}
+                            title={project.github_repo ? "GitHub連携を編集" : "GitHubリポジトリを連携"}
+                          >
+                            <Github className="w-3.5 h-3.5" />
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              if (confirm(`プロジェクト「${project.name}」を完了（100%）にしますか？`)) {
+                                onUpdateProject(project.id, {
+                                  progress_percent: 100,
+                                });
+                              }
+                            }}
+                            className="p-1 rounded-md text-gray-300 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            title="プロジェクトを完了（100%）にする"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                     {project.deadline && (
