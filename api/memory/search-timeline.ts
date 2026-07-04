@@ -24,15 +24,20 @@ export default async function handler(req: any, res: any) {
   try {
     const supabaseClient = getSupabase();
 
+    if (query) {
+      const { data: ftsData, error: ftsError } = await supabaseClient.rpc("search_timeline_fts", {
+        search_query: query,
+        result_limit: Number(limit),
+      });
+      if (ftsError) return res.status(500).json({ error: ftsError.message });
+      return res.status(200).json({ results: ftsData, count: ftsData?.length || 0 });
+    }
+
     let q = supabaseClient
       .from("memory_timeline_events_for_ai")
       .select("id, display_title, event_date, year, primary_category, categories, locations, ai_context")
       .order("event_date", { ascending: true, nullsFirst: false })
       .limit(Number(limit));
-
-    if (query) {
-      q = q.or(`title.ilike.%${query}%,body.ilike.%${query}%,summary.ilike.%${query}%`);
-    }
 
     if (category) {
       q = q.contains("categories", [category]);
