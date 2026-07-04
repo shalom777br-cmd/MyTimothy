@@ -51,7 +51,7 @@ ${JSON.stringify(events.filter((e: any) => e.date === dateToUse), null, 2)}
 指定された responseSchema に従って、余計なマークダウン文字や解説を一切含めず、純粋なJSONのみを返してください。`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: "今日のスケジュールを提案してください。",
       config: {
         systemInstruction: systemPrompt,

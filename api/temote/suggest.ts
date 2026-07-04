@@ -104,7 +104,7 @@ ${lastCompletedTask ? JSON.stringify(lastCompletedTask, null, 2) : "なし"}
 }`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: "今日のおすすめタスクを選定してください。",
       config: {
         systemInstruction: systemPrompt,

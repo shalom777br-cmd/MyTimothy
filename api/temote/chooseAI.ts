@@ -49,13 +49,13 @@ export interface AIProvider {
 // 1. Gemini プロバイダー
 export const GeminiProvider: AIProvider = {
   id: "gemini",
-  name: "Gemini 3.5 Flash",
+  name: "Gemini 2.0 Flash",
   async generateJSON(systemPrompt: string, userInput: string, responseSchema: any) {
     if (!ai) {
       throw new Error("Gemini API Client is not initialized.");
     }
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: [{ text: `ユーザー報告: "${userInput}"` }],
       config: {
         systemInstruction: systemPrompt,

@@ -36,7 +36,7 @@ ${JSON.stringify(tasks?.filter((t: any) => !t.done), null, 2)}
 例：「おはようございます。今日はCONCERTANTE의 APIエンドポイントを一つ仕上げると前進します。」`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: "朝の通知を生成してください。",
       config: {
         systemInstruction: systemPrompt,

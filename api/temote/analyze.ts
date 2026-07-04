@@ -141,7 +141,7 @@ export default async function handler(req: any, res: any) {
       if (!timelineError && timelineData && timelineData.length > 0) {
         timelineMemories = timelineData.map((t: any) => ({
           category: "年表",
-          content: `[${t.year ?? "年不明"}] ${t.display_title.split(" / ").pop()}: ${(t.ai_context?.match(/summary: ([\s\S]*?)\nbody:/)?.[1] ?? "").slice(0, 200)}`,
+          content: `[${t.year ?? "年不明"}] ${(t.display_title || "").split(" / ").pop() || "無題"}: ${(t.ai_context?.match(/summary: ([\s\S]*?)\nbody:/)?.[1] ?? "").slice(0, 200)}`,
         }));
       }
     } catch (e) {
