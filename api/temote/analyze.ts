@@ -130,7 +130,29 @@ export default async function handler(req: any, res: any) {
     matchedCategories.push("values");
   }
 
-  const activeMemories = memories.filter(m => matchedCategories.includes(m.category));
+  // 4. 年表(神の栄光の年表)からの関連記憶を追加
+  let timelineMemories: any[] = [];
+  if (supabase) {
+    try {
+      const { data: timelineData, error: timelineError } = await supabase.rpc(
+        "search_timeline_fts",
+        { search_query: userInput, result_limit: 3 }
+      );
+      if (!timelineError && timelineData && timelineData.length > 0) {
+        timelineMemories = timelineData.map((t: any) => ({
+          category: "年表",
+          content: `[${t.year ?? "年不明"}] ${t.display_title.split(" / ").pop()}: ${(t.ai_context?.match(/summary: ([\s\S]*?)\nbody:/)?.[1] ?? "").slice(0, 200)}`,
+        }));
+      }
+    } catch (e) {
+      console.warn("[Timeline Memories Fetch] Failed:", e);
+    }
+  }
+
+  const activeMemories = [
+    ...memories.filter(m => matchedCategories.includes(m.category)),
+    ...timelineMemories,
+  ];
 
   // AI Selection using Router
   const aiSelection = chooseAI(userInput);
