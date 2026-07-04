@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { LogIn, X, Mail, Lock, CheckCircle, ShieldAlert } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { LogIn, X, Lock, CheckCircle, ShieldAlert, Delete } from "lucide-react";
 import { CuteTemoteLogo } from "./CuteTemoteLogo";
 
 interface AuthModalProps {
@@ -9,61 +9,74 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPin("");
+      setError(null);
+      setSuccess(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setError("メールアドレスとパスワードを入力してください。");
-      return;
+  const handleKeyPress = (digit: string) => {
+    if (pin.length < 4) {
+      const nextPin = pin + digit;
+      setPin(nextPin);
+      setError(null);
+      
+      // Auto-submit when 4 digits are reached
+      if (nextPin.length === 4) {
+        verifyPasscode(nextPin);
+      }
     }
+  };
 
+  const handleBackspace = () => {
+    if (pin.length > 0) {
+      setPin(pin.slice(0, -1));
+      setError(null);
+    }
+  };
+
+  const verifyPasscode = (code: string) => {
     setLoading(true);
-    setError(null);
-
-    // Simulate Supabase Auth + Server verification delay
+    
     setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => {
-        onLoginSuccess(email);
-        setSuccess(false);
-        onClose();
-      }, 1000);
-    }, 1200);
+      // Joanna's dedicated private passcode is 7770
+      if (code === "7770") {
+        setLoading(false);
+        setSuccess(true);
+        setTimeout(() => {
+          onLoginSuccess("shalom777br@gmail.com");
+          setSuccess(false);
+          onClose();
+        }, 1000);
+      } else {
+        setLoading(false);
+        setPin("");
+        setError("パスコードが正しくありません。");
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+      }
+    }, 800);
   };
 
-  const handleUseDemo = () => {
-    setEmail("shalom777br@gmail.com");
-    setPassword("joannapassword123");
-  };
-
-  const handleGoogleLogin = () => {
-    setGoogleLoading(true);
-    setError(null);
-
-    // Simulate Google Sign-In pop-up and secure session initialization
-    setTimeout(() => {
-      setGoogleLoading(false);
-      setSuccess(true);
-      setTimeout(() => {
-        onLoginSuccess("shalom777br@gmail.com");
-        setSuccess(false);
-        onClose();
-      }, 1000);
-    }, 1200);
-  };
+  const keypadDigits = [
+    ["1", "2", "3"],
+    ["4", "5", "6"],
+    ["7", "8", "9"]
+  ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-sm bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-sm bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
         
         {/* Close Button */}
         <button
@@ -74,126 +87,102 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
         </button>
 
         {/* Heading */}
-        <div className="text-center space-y-2 pt-2">
-          <CuteTemoteLogo size={48} className="mx-auto" />
-          <h2 className="text-base font-display font-bold text-[#1D1D1F]">
-            テモテにログイン
+        <div className="text-center space-y-1.5 pt-2">
+          <CuteTemoteLogo size={42} className="mx-auto" />
+          <h2 className="text-sm font-display font-bold text-[#1D1D1F]">
+            ジョアンナ専用 AI秘書テモテ
           </h2>
-          <p className="text-[11px] text-gray-400 max-w-[240px] mx-auto font-light">
-            認証してご自身のプロジェクト・タスクにアクセスします。
+          <p className="text-[10px] text-gray-400 max-w-[240px] mx-auto font-light">
+            3台のデバイス間で作業状況を同期するため、共通の4桁パスコードを入力してください。
           </p>
         </div>
 
         {success ? (
-          <div className="py-6 text-center space-y-2 animate-scale-up">
+          <div className="py-8 text-center space-y-2 animate-scale-up">
             <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
-            <p className="text-xs font-semibold text-emerald-800">ログイン成功</p>
-            <p className="text-[10px] text-gray-400 font-light">セッションの初期化と実データを読み込んでいます...</p>
+            <p className="text-xs font-semibold text-emerald-800">ロックを解除しました</p>
+            <p className="text-[10px] text-gray-400 font-light">共有記憶層とテモテの記憶を同期中...</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {/* Google Sign-In Button */}
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading || googleLoading}
-              className={`w-full py-2.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-full flex items-center justify-center gap-2.5 transition-all cursor-pointer active:scale-[0.98] ${
-                (loading || googleLoading) ? "opacity-60 cursor-not-allowed" : ""
-              }`}
-            >
-              {googleLoading ? (
-                <span className="text-[10px] text-gray-400 font-normal">Googleアカウント認証中...</span>
-              ) : (
-                <>
-                  <span className="w-5 h-5 flex items-center justify-center font-display font-black text-xs text-[#4285F4] shrink-0 bg-gray-50 rounded-full border border-gray-100 shadow-3xs">G</span>
-                  <span>Google でログイン</span>
-                </>
-              )}
-            </button>
-
-            {/* Divider */}
-            <div className="relative flex py-1.5 items-center">
-              <div className="flex-grow border-t border-gray-150/60"></div>
-              <span className="flex-shrink mx-3 text-[9px] text-gray-400 font-semibold font-display tracking-widest uppercase">または</span>
-              <div className="flex-grow border-t border-gray-150/60"></div>
+          <div className="space-y-6">
+            
+            {/* PIN Dots indicators */}
+            <div className={`flex justify-center gap-4 py-2 ${shake ? "animate-bounce" : ""}`}>
+              {[0, 1, 2, 3].map((index) => {
+                const isFilled = pin.length > index;
+                return (
+                  <div
+                    key={index}
+                    className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-150 ${
+                      isFilled 
+                        ? "bg-gray-800 border-gray-800 scale-110 shadow-xs" 
+                        : "border-gray-250 bg-gray-50/50"
+                    }`}
+                  />
+                );
+              })}
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email Field */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 font-display flex items-center gap-1.5 uppercase tracking-wider">
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>メールアドレス</span>
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="shalom777br@gmail.com"
-                  className="w-full text-xs text-gray-800 bg-gray-50/50 hover:bg-white border border-gray-150 focus:border-gray-900 rounded-xl px-3 py-2.5 transition-all outline-hidden font-light"
-                  disabled={loading || googleLoading}
-                />
+            {/* Error Message */}
+            {error && (
+              <div className="text-[10px] text-red-600 bg-red-50 border border-red-100 rounded-xl p-2.5 flex items-center justify-center gap-1.5 text-center leading-relaxed">
+                <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                <span>{error}</span>
               </div>
+            )}
 
-              {/* Password Field */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 font-display flex items-center gap-1.5 uppercase tracking-wider">
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>パスワード</span>
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full text-xs text-gray-800 bg-gray-50/50 hover:bg-white border border-gray-150 focus:border-gray-900 rounded-xl px-3 py-2.5 transition-all outline-hidden font-light"
-                  disabled={loading || googleLoading}
-                />
-              </div>
-
-              {error && (
-                <div className="text-[10px] text-red-600 bg-red-50 border border-red-100 rounded-xl p-3 flex items-center gap-2 leading-relaxed">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
+            {/* iOS-Style Virtual Keypad */}
+            <div className="space-y-3">
+              {keypadDigits.map((row, rowIndex) => (
+                <div key={rowIndex} className="flex justify-center gap-4">
+                  {row.map((digit) => (
+                    <button
+                      key={digit}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleKeyPress(digit)}
+                      className="w-14 h-14 rounded-full bg-gray-50 hover:bg-gray-100 active:bg-gray-200 border border-gray-150/50 text-gray-800 font-display font-bold text-lg flex items-center justify-center transition-all select-none cursor-pointer outline-hidden disabled:opacity-50"
+                    >
+                      {digit}
+                    </button>
+                  ))}
                 </div>
-              )}
-
-              {/* Security Explanation */}
-              <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-1.5 text-[9px] text-gray-500 leading-relaxed font-light">
-                <div className="font-semibold text-gray-700 font-display">🔒 セキュリティ・アクセス設計</div>
-                <div>Supabase Authにてユーザーセッションを認証。サーバー側で毎リクエスト毎にトークンを自動検証し、Row Level Security (RLS) で完全に分離されたデータベース領域へ接続します。</div>
-              </div>
-
-              {/* Form actions */}
-              <div className="space-y-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={loading || googleLoading}
-                  className="w-full py-2.5 bg-[#1D1D1F] hover:bg-black text-white text-xs font-semibold rounded-full hover:scale-[1.02] transition-transform cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  {loading ? (
-                    <span>接続しています...</span>
-                  ) : (
-                    <>
-                      <LogIn className="w-3.5 h-3.5" />
-                      <span>ログイン</span>
-                    </>
-                  )}
-                </button>
-
+              ))}
+              <div className="flex justify-center gap-4">
+                {/* Dummy placeholder for layout alignment */}
+                <div className="w-14 h-14" />
+                
+                {/* Digit 0 */}
                 <button
                   type="button"
-                  onClick={handleUseDemo}
-                  disabled={loading || googleLoading}
-                  className="w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 text-[10px] font-semibold rounded-full border border-gray-200 transition-colors cursor-pointer"
+                  disabled={loading}
+                  onClick={() => handleKeyPress("0")}
+                  className="w-14 h-14 rounded-full bg-gray-50 hover:bg-gray-100 active:bg-gray-200 border border-gray-150/50 text-gray-800 font-display font-bold text-lg flex items-center justify-center transition-all select-none cursor-pointer outline-hidden disabled:opacity-50"
                 >
-                  デモ情報を自動入力する
+                  0
+                </button>
+
+                {/* Backspace Button */}
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleBackspace}
+                  className="w-14 h-14 rounded-full bg-gray-50/30 hover:bg-gray-100 text-gray-400 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer select-none outline-hidden disabled:opacity-50"
+                >
+                  <Delete className="w-5 h-5" />
                 </button>
               </div>
-            </form>
+            </div>
+
+            {/* Security Notice */}
+            <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100 space-y-1 text-[9px] text-gray-400 leading-relaxed font-light text-center">
+              <div>🔒 Joanna Private Secure Environment</div>
+              <div>パスコード入力に成功すると、ローカルストレージに安全にトークンが維持され、Supabaseに自動バックアップされます。</div>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 };
+

@@ -65,3 +65,12 @@ export interface CalendarEvent {
   description?: string;
 }
 
+export interface Memory {
+  id: string;
+  category: "values" | "faith" | "ifs_parts" | "wishes";
+  content: string;
+  source?: string;
+  created_at?: string;
+  email?: string;
+}
+

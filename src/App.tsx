@@ -11,6 +11,7 @@ import { DailySchedulePanel } from "./components/DailySchedulePanel";
 import { CalendarPanel } from "./components/CalendarPanel";
 import { HeldJobsList } from "./components/HeldJobsList";
 import { GithubSettings } from "./components/GithubSettings";
+import { MemoriesPanel } from "./components/MemoriesPanel";
 
 // Helper function to get today's date formatted as YYYY-MM-DD
 function getTodayStr(offsetDays = 0) {
@@ -1259,6 +1260,12 @@ alter table temote_user_data disable row level security;`}
                 setRecommendedTask(task);
                 setRecommendationReason("スケジュールから選択された今日の集中タスクです。");
               }}
+            />
+
+            {/* Shared Memory Core Layer */}
+            <MemoriesPanel
+              userEmail={userEmail}
+              isLoggedIn={isLoggedIn}
             />
           </div>
 

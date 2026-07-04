@@ -39,6 +39,17 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth()); // 0-indexed
 
+  // Synchronize year & month view when selectedDateStr changes
+  React.useEffect(() => {
+    if (selectedDateStr) {
+      const parts = selectedDateStr.split("-").map(Number);
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        setCurrentYear(parts[0]);
+        setCurrentMonth(parts[1] - 1);
+      }
+    }
+  }, [selectedDateStr]);
+
 
   // Form states
   const [showAddForm, setShowAddForm] = useState(false);
@@ -314,12 +325,30 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
       {/* Selected Day Timeline & Planner */}
       <div className="border-t border-gray-50 pt-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Selected Date</span>
-            <h3 className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
-              <CalendarIcon className="w-3.5 h-3.5 text-[#0071E3]" />
-              {formattedSelectedDate()}
-            </h3>
+          <div className="space-y-0.5 flex items-center gap-3">
+            <div>
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Selected Date</span>
+              <h3 className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+                <CalendarIcon className="w-3.5 h-3.5 text-[#0071E3]" />
+                {formattedSelectedDate()}
+              </h3>
+            </div>
+            
+            {/* Quick Today Snap button */}
+            <button
+              onClick={() => {
+                const d = new Date();
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const todayStr = `${yyyy}-${mm}-${dd}`;
+                onSelectDate(todayStr);
+              }}
+              className="px-2.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100/50 rounded-full text-[9px] font-bold transition-all cursor-pointer select-none"
+              title="今日のシステム日付に移動"
+            >
+              今日
+            </button>
           </div>
 
           <button

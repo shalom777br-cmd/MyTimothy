@@ -8,6 +8,7 @@ import suggestHandler from "./api/temote/suggest";
 import notifyHandler from "./api/temote/notify";
 import scheduleHandler from "./api/temote/schedule";
 import dataHandler from "./api/temote/data";
+import memoriesHandler from "./api/temote/memories";
 import repoInfoHandler from "./api/github/repo-info";
 import statusHandler from "./api/github/status";
 import indexHandler from "./api/index";
@@ -28,6 +29,8 @@ app.post("/api/temote/schedule", (req, res) => scheduleHandler(req, res));
 
 app.get("/api/temote/data", (req, res) => dataHandler(req, res));
 app.post("/api/temote/data", (req, res) => dataHandler(req, res));
+
+app.all("/api/temote/memories", (req, res) => memoriesHandler(req, res));
 
 app.get("/api/github/repo-info", (req, res) => repoInfoHandler(req, res));
 app.get("/api/github/status", (req, res) => statusHandler(req, res));
